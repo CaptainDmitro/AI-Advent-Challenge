@@ -2,6 +2,10 @@
 
 A simple Rust command-line app that continuously chats with any OpenAI-compatible LLM API: it prompts for input, sends the running conversation to the `/chat/completions` endpoint, prints the reply, and repeats until interrupted with `Ctrl+C`.
 
+## Demo
+
+https://github.com/user-attachments/assets/f21864db-c7e3-4da4-983d-e25c2929e0ba
+
 ## Run
 
 ```bash
