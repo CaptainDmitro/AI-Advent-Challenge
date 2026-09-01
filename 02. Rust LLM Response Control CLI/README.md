@@ -14,6 +14,10 @@
 Результат:
 Один и тот же запрос с разным уровнем контроля ответа через API
 
+## Demo
+
+https://github.com/user-attachments/assets/f21c0599-93c1-4138-81a4-0a04cf9de107
+
 ## What this is
 
 An interactive CLI chat, same as [lesson 01](../01.%20Rust%20LLM%20Chat%20CLI), extended with live commands to control how the API generates its response: an explicit format instruction, a `max_tokens` limit, and a `stop` sequence. This lets you ask a question, tweak the controls, and resend the exact same question to compare the unrestricted vs. restricted response.
