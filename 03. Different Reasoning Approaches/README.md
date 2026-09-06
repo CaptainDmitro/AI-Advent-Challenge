@@ -26,6 +26,10 @@
 Формат:
 Видео + Код
 
+## Demo
+
+https://github.com/user-attachments/assets/ecc18e5b-fc5a-44dc-bb37-22825f07792f
+
 ## What this is
 
 A small web app: one prompt box, a Run button, and four output boxes showing the same task solved four different ways:
