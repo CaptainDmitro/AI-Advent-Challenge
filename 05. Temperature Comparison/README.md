@@ -31,9 +31,9 @@ _(coming soon)_
 
 A web app very similar to [lesson 03](../03.%20Different%20Reasoning%20Approaches) and [lesson 04](../04.%20Model%20Version%20Comparison), but this time only one model (`deepseek-v4-pro`) is used, and the variable being compared is the API's `temperature` parameter instead of the model or the prompting strategy.
 
-Three boxes, each with its own slider (defaulting to 0 / 0.7 / 1.2, matching the task), let you set that box's temperature. Clicking Run sends the same prompt to each box **three times** at its temperature — nine calls total — because a single sample can't show diversity: you need to see the same prompt+temperature produce identical output at `temperature=0` and varied output at higher temperatures across repeated runs.
+Three boxes, each with its own slider (defaulting to 0 / 0.7 / 1.2, matching the task), let you set that box's temperature. Clicking Run sends the same prompt to each box once at its temperature. To actually see diversity — which by definition needs more than one sample — click Run again with the same prompt: `temperature=0`'s box should repeat itself, while the higher-temperature boxes should vary.
 
-Once all nine runs are in, a fourth box automates the lesson's "state which tasks each setting suits" step: it sends the original task plus all three temperatures' sampled answers to the model (at `temperature=0`, for a focused judgment) and asks it to compare accuracy/creativity/diversity and conclude which setting fits which kind of task.
+Once all three answers are in, a fourth box automates the lesson's "state which tasks each setting suits" step: it sends the original task plus all three temperatures' answers to the model (at `temperature=0`, for a focused judgment) and asks it to compare accuracy/creativity and conclude which setting fits which kind of task.
 
 ## Run
 

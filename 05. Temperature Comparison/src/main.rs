@@ -115,7 +115,7 @@ async fn run(
 #[derive(Deserialize)]
 struct TemperatureGroup {
     temperature: f32,
-    answers: Vec<String>,
+    answer: String,
 }
 
 #[derive(Deserialize)]
@@ -131,22 +131,19 @@ async fn analyze(
     let mut sections = String::new();
     for group in &req.groups {
         sections.push_str(&format!(
-            "\nTemperature {}, {} independent samples of the same prompt:\n",
-            group.temperature,
-            group.answers.len()
+            "\nTemperature {}: {}\n",
+            group.temperature, group.answer
         ));
-        for (i, answer) in group.answers.iter().enumerate() {
-            sections.push_str(&format!("Sample {}: {}\n", i + 1, answer));
-        }
     }
 
     let analysis_prompt = format!(
-        "The same task was sent to one model multiple times at each of several \
-         temperature settings, sampled several times per setting so you can see how \
-         consistent or varied the outputs are at each temperature. Compare the settings \
-         on accuracy, creativity, and diversity across the samples, and conclude which \
-         kind of task each temperature setting suits best. Respond in the same language \
-         as the original task.\n\nTask: {}\n{}",
+        "The same task was sent to one model at each of several temperature settings. \
+         Compare the settings on accuracy and creativity, and conclude which kind of \
+         task each temperature setting suits best. (Diversity across repeated runs at \
+         the same temperature isn't captured here — only one sample per setting — so \
+         don't claim to observe it, just note that higher temperatures are expected to \
+         vary more across repeated runs.) Respond in the same language as the original \
+         task.\n\nTask: {}\n{}",
         req.prompt, sections
     );
 

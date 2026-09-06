@@ -167,23 +167,13 @@
     text-align: right;
   }
 
-  .subbox + .subbox { border-top: 1px solid var(--border); }
-  .subbox-title {
-    padding: 0.7rem 1.1rem 0;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-  }
-
   .output {
     padding: 1rem 1.1rem;
     font-size: 0.9rem;
     line-height: 1.55;
     overflow-y: auto;
   }
-  .subbox .output { max-height: 190px; }
+  .grid .output { height: 280px; }
   .box-conclusion .output { height: 300px; }
 
   .output.loading {
@@ -240,7 +230,7 @@
 <body>
   <header>
     <h1>Temperature Comparison</h1>
-    <p>Send the same prompt at three temperatures, three times each, to compare accuracy, creativity, and diversity.</p>
+    <p>Send the same prompt at three temperatures to compare accuracy, creativity, and diversity.</p>
   </header>
 
   <div class="composer">
@@ -259,9 +249,7 @@
       <div class="slider-row">
         <input type="range" class="temp-slider" min="0" max="2" step="0.1" value="0">
       </div>
-      <div class="subbox"><div class="subbox-title">Run 1</div><div class="output run-output"></div></div>
-      <div class="subbox"><div class="subbox-title">Run 2</div><div class="output run-output"></div></div>
-      <div class="subbox"><div class="subbox-title">Run 3</div><div class="output run-output"></div></div>
+      <div class="output run-output"></div>
     </div>
     <div class="box box-1" data-index="1">
       <div class="box-header">
@@ -271,9 +259,7 @@
       <div class="slider-row">
         <input type="range" class="temp-slider" min="0" max="2" step="0.1" value="0.7">
       </div>
-      <div class="subbox"><div class="subbox-title">Run 1</div><div class="output run-output"></div></div>
-      <div class="subbox"><div class="subbox-title">Run 2</div><div class="output run-output"></div></div>
-      <div class="subbox"><div class="subbox-title">Run 3</div><div class="output run-output"></div></div>
+      <div class="output run-output"></div>
     </div>
     <div class="box box-2" data-index="2">
       <div class="box-header">
@@ -283,9 +269,7 @@
       <div class="slider-row">
         <input type="range" class="temp-slider" min="0" max="2" step="0.1" value="1.2">
       </div>
-      <div class="subbox"><div class="subbox-title">Run 1</div><div class="output run-output"></div></div>
-      <div class="subbox"><div class="subbox-title">Run 2</div><div class="output run-output"></div></div>
-      <div class="subbox"><div class="subbox-title">Run 3</div><div class="output run-output"></div></div>
+      <div class="output run-output"></div>
     </div>
   </div>
 
@@ -306,7 +290,7 @@ const boxes = Array.from(document.querySelectorAll('.grid .box')).map((el) => ({
   el,
   slider: el.querySelector('.temp-slider'),
   valueLabel: el.querySelector('.temp-value'),
-  runOutputs: Array.from(el.querySelectorAll('.run-output')),
+  output: el.querySelector('.run-output'),
 }));
 
 boxes.forEach((box) => {
@@ -448,8 +432,7 @@ runButton.addEventListener('click', async () => {
 
   const boxRuns = boxes.map((box) => {
     const temperature = parseFloat(box.slider.value);
-    const runs = box.runOutputs.map((outputEl) => runOnce(prompt, temperature, outputEl));
-    return Promise.all(runs).then((answers) => ({ temperature, answers }));
+    return runOnce(prompt, temperature, box.output).then((answer) => ({ temperature, answer }));
   });
 
   const groups = await Promise.all(boxRuns);
