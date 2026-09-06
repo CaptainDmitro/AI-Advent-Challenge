@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temperature Comparison</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --code-bg: #f0f1f4;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+    --accent-0: #2563eb;
+    --accent-1: #d97706;
+    --accent-2: #dc2626;
+    --accent-conclusion: #4f46e5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --code-bg: #262a33;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+      --accent-0: #60a5fa;
+      --accent-1: #fbbf24;
+      --accent-2: #f87171;
+      --accent-conclusion: #818cf8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+
+  header { text-align: center; margin-bottom: 2rem; }
+  h1 {
+    font-size: 1.7rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.98rem;
+  }
+
+  .composer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  textarea {
+    width: 100%;
+    font-family: inherit;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: vertical;
+  }
+
+  #prompt { height: 4.5rem; font-size: 1.02rem; padding: 0; }
+  #prompt::placeholder { color: var(--text-muted); }
+
+  .composer-footer { display: flex; justify-content: flex-end; margin-top: 0.75rem; }
+
+  button#run {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    padding: 0.6rem 1.4rem;
+    font-size: 0.98rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button#run:hover:not(:disabled) { background: var(--primary-hover); }
+  button#run:active:not(:disabled) { transform: scale(0.98); }
+  button#run:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+  }
+  @media (max-width: 980px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .box-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .badge {
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .box-0 .badge { background: var(--accent-0); }
+  .box-1 .badge { background: var(--accent-1); }
+  .box-2 .badge { background: var(--accent-2); }
+  .box-conclusion .badge { background: var(--accent-conclusion); }
+
+  .box-header h2 { font-size: 0.95rem; font-weight: 600; margin: 0; }
+  .box-header h2 span { color: var(--primary); font-weight: 700; }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--code-bg);
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--primary);
+  }
+  .slider-row .range-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    width: 2.4rem;
+    text-align: right;
+  }
+
+  .subbox + .subbox { border-top: 1px solid var(--border); }
+  .subbox-title {
+    padding: 0.7rem 1.1rem 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .output {
+    padding: 1rem 1.1rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    overflow-y: auto;
+  }
+  .subbox .output { max-height: 190px; }
+  .box-conclusion .output { height: 300px; }
+
+  .output.loading {
+    color: var(--text-muted);
+    font-style: italic;
+    animation: pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .box-conclusion { margin-top: 1.25rem; }
+
+  /* Rendered markdown */
+  .output p { margin: 0 0 0.75em; }
+  .output p:last-child { margin-bottom: 0; }
+  .output ul, .output ol { margin: 0 0 0.75em 1.25em; padding: 0; }
+  .output li { margin-bottom: 0.25em; }
+  .output h3, .output h4, .output h5 { margin: 0.9em 0 0.4em; font-size: 1em; font-weight: 700; }
+  .output h3:first-child, .output h4:first-child, .output h5:first-child { margin-top: 0; }
+  .output code {
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .output pre {
+    background: var(--code-bg);
+    padding: 0.75em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0 0 0.75em;
+  }
+  .output pre code { background: none; padding: 0; }
+  .output a { color: var(--primary); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Temperature Comparison</h1>
+    <p>Send the same prompt at three temperatures, three times each, to compare accuracy, creativity, and diversity.</p>
+  </header>
+
+  <div class="composer">
+    <textarea id="prompt" placeholder="Enter your task..."></textarea>
+    <div class="composer-footer">
+      <button id="run">Run</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="box box-0" data-index="0">
+      <div class="box-header">
+        <span class="badge">T</span>
+        <h2>Temperature <span class="temp-value">0</span></h2>
+      </div>
+      <div class="slider-row">
+        <input type="range" class="temp-slider" min="0" max="2" step="0.1" value="0">
+      </div>
+      <div class="subbox"><div class="subbox-title">Run 1</div><div class="output run-output"></div></div>
+      <div class="subbox"><div class="subbox-title">Run 2</div><div class="output run-output"></div></div>
+      <div class="subbox"><div class="subbox-title">Run 3</div><div class="output run-output"></div></div>
+    </div>
+    <div class="box box-1" data-index="1">
+      <div class="box-header">
+        <span class="badge">T</span>
+        <h2>Temperature <span class="temp-value">0.7</span></h2>
+      </div>
+      <div class="slider-row">
+        <input type="range" class="temp-slider" min="0" max="2" step="0.1" value="0.7">
+      </div>
+      <div class="subbox"><div class="subbox-title">Run 1</div><div class="output run-output"></div></div>
+      <div class="subbox"><div class="subbox-title">Run 2</div><div class="output run-output"></div></div>
+      <div class="subbox"><div class="subbox-title">Run 3</div><div class="output run-output"></div></div>
+    </div>
+    <div class="box box-2" data-index="2">
+      <div class="box-header">
+        <span class="badge">T</span>
+        <h2>Temperature <span class="temp-value">1.2</span></h2>
+      </div>
+      <div class="slider-row">
+        <input type="range" class="temp-slider" min="0" max="2" step="0.1" value="1.2">
+      </div>
+      <div class="subbox"><div class="subbox-title">Run 1</div><div class="output run-output"></div></div>
+      <div class="subbox"><div class="subbox-title">Run 2</div><div class="output run-output"></div></div>
+      <div class="subbox"><div class="subbox-title">Run 3</div><div class="output run-output"></div></div>
+    </div>
+  </div>
+
+  <div class="box box-conclusion">
+    <div class="box-header">
+      <span class="badge">✓</span>
+      <h2>Conclusion<span style="color: var(--text-muted); font-weight: 400; font-style: italic; margin-left: 0.4rem;">which setting suits which kind of task, once all runs are in</span></h2>
+    </div>
+    <div class="output" id="out-conclusion"></div>
+  </div>
+
+<script>
+const runButton = document.getElementById('run');
+const promptEl = document.getElementById('prompt');
+const conclusionOutput = document.getElementById('out-conclusion');
+
+const boxes = Array.from(document.querySelectorAll('.grid .box')).map((el) => ({
+  el,
+  slider: el.querySelector('.temp-slider'),
+  valueLabel: el.querySelector('.temp-value'),
+  runOutputs: Array.from(el.querySelectorAll('.run-output')),
+}));
+
+boxes.forEach((box) => {
+  box.slider.addEventListener('input', () => {
+    box.valueLabel.textContent = box.slider.value;
+  });
+});
+
+// Minimal, dependency-free markdown renderer covering what LLM answers typically use:
+// fenced/inline code, bold/italic, headings, lists, links, and paragraphs.
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderMarkdown(raw) {
+  if (!raw) return '';
+
+  const codeBlocks = [];
+  let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return `${codeBlocks.length - 1}`;
+  });
+
+  text = escapeHtml(text);
+  text = text.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  const lines = text.split('\n');
+  let html = '';
+  let listType = null;
+  let paragraph = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      html += `<p>${paragraph.join('<br>')}</p>`;
+      paragraph = [];
+    }
+  };
+  const closeList = () => {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  };
+
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,3})\s+(.*)/);
+    const ordered = line.match(/^\s*\d+\.\s+(.*)/);
+    const unordered = line.match(/^\s*[-*]\s+(.*)/);
+
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = heading[1].length + 2;
+      html += `<h${level}>${heading[2]}</h${level}>`;
+    } else if (ordered) {
+      flushParagraph();
+      if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; }
+      html += `<li>${ordered[1]}</li>`;
+    } else if (unordered) {
+      flushParagraph();
+      if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; }
+      html += `<li>${unordered[1]}</li>`;
+    } else if (line.trim() === '') {
+      flushParagraph();
+      closeList();
+    } else {
+      closeList();
+      paragraph.push(line);
+    }
+  }
+  flushParagraph();
+  closeList();
+
+  return html.replace(/(\d+)/g, (_, i) => codeBlocks[i]);
+}
+
+async function runOnce(prompt, temperature, outputEl) {
+  outputEl.textContent = 'Loading...';
+  outputEl.classList.add('loading');
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, temperature }),
+    });
+    if (!res.ok) {
+      const message = `Error: request failed with status ${res.status}`;
+      outputEl.textContent = message;
+      return message;
+    }
+    const data = await res.json();
+    outputEl.innerHTML = renderMarkdown(data.answer);
+    return data.answer;
+  } catch (e) {
+    const message = `Error: ${e}`;
+    outputEl.textContent = message;
+    return message;
+  } finally {
+    outputEl.classList.remove('loading');
+  }
+}
+
+runButton.addEventListener('click', async () => {
+  const prompt = promptEl.value.trim();
+  if (!prompt) return;
+
+  runButton.disabled = true;
+
+  const boxRuns = boxes.map((box) => {
+    const temperature = parseFloat(box.slider.value);
+    const runs = box.runOutputs.map((outputEl) => runOnce(prompt, temperature, outputEl));
+    return Promise.all(runs).then((answers) => ({ temperature, answers }));
+  });
+
+  const groups = await Promise.all(boxRuns);
+
+  conclusionOutput.textContent = 'Loading...';
+  conclusionOutput.classList.add('loading');
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, groups }),
+    });
+    if (!res.ok) {
+      conclusionOutput.textContent = `Error: request failed with status ${res.status}`;
+    } else {
+      const data = await res.json();
+      conclusionOutput.innerHTML = renderMarkdown(data.answer);
+    }
+  } catch (e) {
+    conclusionOutput.textContent = `Error: ${e}`;
+  } finally {
+    conclusionOutput.classList.remove('loading');
+    runButton.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
