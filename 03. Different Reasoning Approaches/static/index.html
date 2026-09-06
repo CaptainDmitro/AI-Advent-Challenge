@@ -310,7 +310,7 @@ function renderMarkdown(raw) {
   const codeBlocks = [];
   let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
     codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
-    return ` ${codeBlocks.length - 1} `;
+    return `${codeBlocks.length - 1}`;
   });
 
   text = escapeHtml(text);
@@ -366,7 +366,7 @@ function renderMarkdown(raw) {
   flushParagraph();
   closeList();
 
-  return html.replace(/ (\d+) /g, (_, i) => codeBlocks[i]);
+  return html.replace(/(\d+)/g, (_, i) => codeBlocks[i]);
 }
 
 function setLoading(elements) {
