@@ -243,6 +243,59 @@ async fn strong(
     Json(run_model(&state.client, &state.strong, &req.prompt).await)
 }
 
+#[derive(Deserialize)]
+struct TierResult {
+    model: String,
+    answer: String,
+    elapsed_ms: u128,
+    total_tokens: Option<u32>,
+    cost_usd: Option<f64>,
+}
+
+impl TierResult {
+    fn describe(&self, label: &str) -> String {
+        let tokens = self
+            .total_tokens
+            .map(|t| t.to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        let cost = self
+            .cost_usd
+            .map(|c| format!("${c:.6}"))
+            .unwrap_or_else(|| "n/a (free/local)".to_string());
+        format!(
+            "{label} — {} ({} ms, {} tokens, cost {}):\n{}",
+            self.model, self.elapsed_ms, tokens, cost, self.answer
+        )
+    }
+}
+
+#[derive(Deserialize)]
+struct AnalyzeRequest {
+    prompt: String,
+    weak: TierResult,
+    medium: TierResult,
+    strong: TierResult,
+}
+
+async fn analyze(
+    State(state): State<std::sync::Arc<AppState>>,
+    Json(req): Json<AnalyzeRequest>,
+) -> Json<RunResponse> {
+    let analysis_prompt = format!(
+        "The same task was sent to three LLMs of increasing capability. Compare their \
+         answers: note differences in quality/correctness, and weigh that against the \
+         speed and cost each one took. Give a short verdict on which was the best \
+         trade-off. Respond in the same language as the original task.\n\n\
+         Task: {}\n\n{}\n\n{}\n\n{}",
+        req.prompt,
+        req.weak.describe("Weak model"),
+        req.medium.describe("Medium model"),
+        req.strong.describe("Strong model"),
+    );
+
+    Json(run_model(&state.client, &state.strong, &analysis_prompt).await)
+}
+
 async fn index() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
 }
@@ -292,6 +345,7 @@ async fn main() {
         .route("/api/weak", post(weak))
         .route("/api/medium", post(medium))
         .route("/api/strong", post(strong))
+        .route("/api/analyze", post(analyze))
         .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());

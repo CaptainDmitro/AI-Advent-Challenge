@@ -46,6 +46,8 @@ Each box shows the model's answer (rendered as Markdown) plus a stats row with:
 
 All three requests run in parallel and each box fills in independently as its call finishes — since the tiers usually differ a lot in latency, you can visibly watch the weak/local model answer first.
 
+Once all three answers are in, a fourth box below automates the lesson's "compare quality/speed/cost" step: it sends the original task plus all three answers (each with its own time/tokens/cost) to the **strong** model, asking it to judge the differences in quality against the speed/cost trade-offs, and prints its verdict.
+
 ## Run
 
 ```bash

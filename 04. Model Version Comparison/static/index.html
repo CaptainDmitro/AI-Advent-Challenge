@@ -19,6 +19,7 @@
     --accent-weak: #16a34a;
     --accent-medium: #d97706;
     --accent-strong: #dc2626;
+    --accent-result: #4f46e5;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -34,6 +35,7 @@
       --accent-weak: #4ade80;
       --accent-medium: #fbbf24;
       --accent-strong: #f87171;
+      --accent-result: #818cf8;
     }
   }
 
@@ -149,6 +151,15 @@
   .box-weak .badge { background: var(--accent-weak); }
   .box-medium .badge { background: var(--accent-medium); }
   .box-strong .badge { background: var(--accent-strong); }
+  .box-result .badge { background: var(--accent-result); }
+
+  .result-box {
+    margin-top: 1.25rem;
+  }
+  .result-box .box-header h2 span {
+    font-weight: 400;
+    font-style: italic;
+  }
 
   .box-header h2 {
     font-size: 0.95rem;
@@ -261,6 +272,15 @@
     </div>
   </div>
 
+  <div class="box box-result result-box">
+    <div class="box-header">
+      <span class="badge">✓</span>
+      <h2>Comparison<span id="model-result">Verdict from the strong model, once all three answers are in</span></h2>
+    </div>
+    <div class="stats" id="stats-result">—</div>
+    <div class="output" id="out-result"></div>
+  </div>
+
 <script>
 const runButton = document.getElementById('run');
 const promptEl = document.getElementById('prompt');
@@ -280,6 +300,11 @@ const boxes = {
     model: document.getElementById('model-strong'),
     stats: document.getElementById('stats-strong'),
     output: document.getElementById('out-strong'),
+  },
+  result: {
+    model: document.getElementById('model-result'),
+    stats: document.getElementById('stats-result'),
+    output: document.getElementById('out-result'),
   },
 };
 
@@ -367,7 +392,11 @@ function formatStats(d) {
   return parts.join(' · ');
 }
 
-async function runTier(url, prompt, box) {
+function errorResult(model, message) {
+  return { model, answer: message, elapsed_ms: 0, total_tokens: null, cost_usd: null };
+}
+
+async function runTier(url, prompt, box, modelLabel) {
   box.output.textContent = 'Loading...';
   box.output.classList.add('loading');
   box.stats.innerHTML = '…';
@@ -378,36 +407,63 @@ async function runTier(url, prompt, box) {
       body: JSON.stringify({ prompt }),
     });
     if (!res.ok) {
-      box.output.textContent = `Error: request failed with status ${res.status}`;
+      const message = `Error: request failed with status ${res.status}`;
+      box.output.textContent = message;
       box.stats.innerHTML = '—';
-      return;
+      return errorResult(modelLabel, message);
     }
     const data = await res.json();
     box.model.textContent = data.model;
     box.output.innerHTML = renderMarkdown(data.answer);
     box.stats.innerHTML = formatStats(data);
+    return data;
   } catch (e) {
-    box.output.textContent = `Error: ${e}`;
+    const message = `Error: ${e}`;
+    box.output.textContent = message;
     box.stats.innerHTML = '—';
+    return errorResult(modelLabel, message);
   } finally {
     box.output.classList.remove('loading');
   }
 }
 
-runButton.addEventListener('click', () => {
+runButton.addEventListener('click', async () => {
   const prompt = promptEl.value.trim();
   if (!prompt) return;
 
   runButton.disabled = true;
-  const tasks = [
-    runTier('/api/weak', prompt, boxes.weak),
-    runTier('/api/medium', prompt, boxes.medium),
-    runTier('/api/strong', prompt, boxes.strong),
-  ];
+  const [weak, medium, strong] = await Promise.all([
+    runTier('/api/weak', prompt, boxes.weak, 'weak model'),
+    runTier('/api/medium', prompt, boxes.medium, 'medium model'),
+    runTier('/api/strong', prompt, boxes.strong, 'strong model'),
+  ]);
 
-  Promise.allSettled(tasks).then(() => {
+  const resultBox = boxes.result;
+  resultBox.output.textContent = 'Loading...';
+  resultBox.output.classList.add('loading');
+  resultBox.stats.innerHTML = '…';
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, weak, medium, strong }),
+    });
+    if (!res.ok) {
+      resultBox.output.textContent = `Error: request failed with status ${res.status}`;
+      resultBox.stats.innerHTML = '—';
+    } else {
+      const data = await res.json();
+      resultBox.model.textContent = `via ${data.model}`;
+      resultBox.output.innerHTML = renderMarkdown(data.answer);
+      resultBox.stats.innerHTML = formatStats(data);
+    }
+  } catch (e) {
+    resultBox.output.textContent = `Error: ${e}`;
+    resultBox.stats.innerHTML = '—';
+  } finally {
+    resultBox.output.classList.remove('loading');
     runButton.disabled = false;
-  });
+  }
 });
 </script>
 </body>
