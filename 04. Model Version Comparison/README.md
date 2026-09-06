@@ -42,7 +42,7 @@ A web app very similar to [lesson 03](../03.%20Different%20Reasoning%20Approache
 Each box shows the model's answer (rendered as Markdown) plus a stats row with:
 - **Response time** — measured server-side around the call to that model
 - **Token count** — parsed from the API's `usage` field (prompt + completion), shown as "—" if a server doesn't return it
-- **Cost** — computed from token counts and per-tier `$/1M token` rates, only if you've configured them (see below); otherwise shown as "—" rather than guessing
+- **Cost** — computed from token counts and hardcoded `$/1M token` rates for the medium and strong models (see below); the weak model is local/free, so its cost always shows "—"
 
 All three requests run in parallel and each box fills in independently as its call finishes — since the tiers usually differ a lot in latency, you can visibly watch the weak/local model answer first.
 
@@ -71,22 +71,22 @@ Each tier is configured independently — same shape, no assumption that any two
 | `STRONG_MODEL` | no | `deepseek-v4-pro` |
 | `PORT` | no | `3000` |
 
-Cost calculation is opt-in per tier (omit either and cost shows as "—" for that tier):
+### Cost rates
 
-| Variable | Meaning |
-|---|---|
-| `MEDIUM_INPUT_COST_PER_1M` | USD per 1M prompt tokens for the medium model |
-| `MEDIUM_OUTPUT_COST_PER_1M` | USD per 1M completion tokens for the medium model |
-| `STRONG_INPUT_COST_PER_1M` | USD per 1M prompt tokens for the strong model |
-| `STRONG_OUTPUT_COST_PER_1M` | USD per 1M completion tokens for the strong model |
+Cost is computed from hardcoded per-1M-token rates in [src/main.rs](src/main.rs), approximating DeepSeek's [published pricing](https://api-docs.deepseek.com/quick_start/pricing) (off-peak, cache-miss) as a single flat number per direction:
 
-Example:
+| Model | Input $/1M | Output $/1M |
+|---|---|---|
+| `deepseek-v4-flash` (medium) | 0.22 | 0.66 |
+| `deepseek-v4-pro` (strong) | 0.66 | 1.98 |
+
+DeepSeek's actual billing varies up to 6x on top of these depending on cache hits and peak/off-peak hours — this tool doesn't model that, so treat the cost figures as ballpark estimates, not exact charges. To change the rates, edit the constants at the top of `src/main.rs` and rebuild.
+
+Example run:
 
 ```bash
 MEDIUM_BASE_URL=https://api.deepseek.com \
 MEDIUM_API_KEY=sk-... \
-MEDIUM_INPUT_COST_PER_1M=0.27 \
-MEDIUM_OUTPUT_COST_PER_1M=1.10 \
 STRONG_BASE_URL=https://api.deepseek.com \
 STRONG_API_KEY=sk-... \
 cargo run

@@ -59,13 +59,14 @@ struct ModelConfig {
 
 impl ModelConfig {
     fn from_env(
-        tier: &'static str,
         base_url_var: &str,
         base_url_default: Option<&str>,
         api_key_var: &str,
         api_key_default: Option<&str>,
         model_var: &str,
         model_default: &str,
+        input_cost_per_1m: Option<f64>,
+        output_cost_per_1m: Option<f64>,
     ) -> Self {
         let base_url = std::env::var(base_url_var).unwrap_or_else(|_| {
             base_url_default
@@ -84,12 +85,6 @@ impl ModelConfig {
                 .to_string()
         });
         let model = std::env::var(model_var).unwrap_or_else(|_| model_default.to_string());
-        let input_cost_per_1m = std::env::var(format!("{tier}_INPUT_COST_PER_1M"))
-            .ok()
-            .and_then(|v| v.parse().ok());
-        let output_cost_per_1m = std::env::var(format!("{tier}_OUTPUT_COST_PER_1M"))
-            .ok()
-            .and_then(|v| v.parse().ok());
 
         ModelConfig {
             endpoint: format!("{}/chat/completions", base_url.trim_end_matches('/')),
@@ -100,6 +95,15 @@ impl ModelConfig {
         }
     }
 }
+
+// Flat per-1M-token rates, approximating DeepSeek's published off-peak, cache-miss
+// pricing (https://api-docs.deepseek.com/quick_start/pricing) as a single representative
+// number — actual DeepSeek billing varies up to 6x with cache hits and peak hours, which
+// this comparison tool doesn't attempt to model.
+const MEDIUM_INPUT_COST_PER_1M: f64 = 0.22;
+const MEDIUM_OUTPUT_COST_PER_1M: f64 = 0.66;
+const STRONG_INPUT_COST_PER_1M: f64 = 0.66;
+const STRONG_OUTPUT_COST_PER_1M: f64 = 1.98;
 
 struct AppState {
     client: reqwest::Client,
@@ -246,31 +250,34 @@ async fn index() -> Html<&'static str> {
 #[tokio::main]
 async fn main() {
     let weak_config = ModelConfig::from_env(
-        "WEAK",
         "WEAK_BASE_URL",
         Some("http://localhost:11434/v1"),
         "WEAK_API_KEY",
         Some("ollama"),
         "WEAK_MODEL",
         "qwen2.5:0.5b",
+        None,
+        None,
     );
     let medium_config = ModelConfig::from_env(
-        "MEDIUM",
         "MEDIUM_BASE_URL",
         None,
         "MEDIUM_API_KEY",
         None,
         "MEDIUM_MODEL",
         "deepseek-v4-flash",
+        Some(MEDIUM_INPUT_COST_PER_1M),
+        Some(MEDIUM_OUTPUT_COST_PER_1M),
     );
     let strong_config = ModelConfig::from_env(
-        "STRONG",
         "STRONG_BASE_URL",
         None,
         "STRONG_API_KEY",
         None,
         "STRONG_MODEL",
         "deepseek-v4-pro",
+        Some(STRONG_INPUT_COST_PER_1M),
+        Some(STRONG_OUTPUT_COST_PER_1M),
     );
 
     let state = std::sync::Arc::new(AppState {
