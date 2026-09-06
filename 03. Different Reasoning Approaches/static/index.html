@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Different Reasoning Approaches</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, sans-serif;
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+  h1 { font-size: 1.4rem; }
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+  #prompt { height: 4rem; }
+  button {
+    margin: 0.75rem 0 1.5rem;
+    padding: 0.5rem 1.25rem;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled { cursor: not-allowed; opacity: 0.6; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .box h2 { font-size: 1rem; margin-bottom: 0.35rem; }
+  .box textarea { height: 260px; resize: vertical; }
+</style>
+</head>
+<body>
+  <h1>Different Reasoning Approaches</h1>
+  <p>Enter a task and compare four ways of getting an answer from the LLM.</p>
+
+  <textarea id="prompt" placeholder="Enter your task..."></textarea>
+  <br>
+  <button id="run">Run</button>
+
+  <div class="grid">
+    <div class="box">
+      <h2>1. Direct answer</h2>
+      <textarea id="out-direct" readonly></textarea>
+    </div>
+    <div class="box">
+      <h2>2. "Think step by step"</h2>
+      <textarea id="out-step" readonly></textarea>
+    </div>
+    <div class="box">
+      <h2>3. Model plans its own prompt, then answers</h2>
+      <textarea id="out-planned" readonly></textarea>
+    </div>
+    <div class="box">
+      <h2>4. Expert panel (analyst / engineer / critic)</h2>
+      <textarea id="out-experts" readonly></textarea>
+    </div>
+  </div>
+
+<script>
+const runButton = document.getElementById('run');
+const promptEl = document.getElementById('prompt');
+const outDirect = document.getElementById('out-direct');
+const outStep = document.getElementById('out-step');
+const outPlanned = document.getElementById('out-planned');
+const outExperts = document.getElementById('out-experts');
+
+async function fetchBox(url, prompt, el, render) {
+  el.value = 'Loading...';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!res.ok) {
+      el.value = `Error: request failed with status ${res.status}`;
+      return;
+    }
+    const data = await res.json();
+    el.value = render(data);
+  } catch (e) {
+    el.value = `Error: ${e}`;
+  }
+}
+
+runButton.addEventListener('click', () => {
+  const prompt = promptEl.value.trim();
+  if (!prompt) return;
+
+  runButton.disabled = true;
+  const tasks = [
+    fetchBox('/api/direct', prompt, outDirect, (d) => d.answer),
+    fetchBox('/api/step-by-step', prompt, outStep, (d) => d.answer),
+    fetchBox('/api/planned', prompt, outPlanned, (d) =>
+      `Generated prompt:\n${d.generated_prompt}\n\nAnswer:\n${d.answer}`
+    ),
+    fetchBox('/api/experts', prompt, outExperts, (d) =>
+      `Analyst:\n${d.analyst}\n\nEngineer:\n${d.engineer}\n\nCritic:\n${d.critic}`
+    ),
+  ];
+
+  Promise.allSettled(tasks).then(() => {
+    runButton.disabled = false;
+  });
+});
+</script>
+</body>
+</html>

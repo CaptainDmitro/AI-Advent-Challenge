@@ -25,3 +25,37 @@
 
 Формат:
 Видео + Код
+
+## What this is
+
+A small web app: one prompt box, a Run button, and four output boxes showing the same task solved four different ways:
+
+1. **Direct** — the prompt sent as-is
+2. **Step by step** — the prompt with an added "решай пошагово" instruction
+3. **Self-planned prompt** — the model is first asked to write a prompt for solving the task, then that generated prompt is sent to get the final answer (both are shown)
+4. **Expert panel** — three independent API calls, one per persona (analyst / engineer / critic), each answering the task from their own point of view
+
+All four run in parallel when you click Run, and each box fills in independently as its call finishes.
+
+A Rust ([axum](https://github.com/tokio-rs/axum)) server holds the API key and proxies the LLM calls; the frontend is a single dependency-free HTML/JS page.
+
+## Run
+
+```bash
+OPENAI_API_KEY=sk-... cargo run
+```
+
+Then open http://localhost:3000.
+
+## Configuration
+
+Set via environment variables:
+
+| Variable | Required | Default |
+|---|---|---|
+| `OPENAI_API_KEY` | yes | — |
+| `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` |
+| `OPENAI_MODEL` | no | `gpt-4o-mini` |
+| `PORT` | no | `3000` |
+
+`OPENAI_BASE_URL` can point at any OpenAI-compatible server (e.g. a local or self-hosted one).
