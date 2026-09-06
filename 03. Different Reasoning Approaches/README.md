@@ -28,7 +28,7 @@
 
 ## Demo
 
-https://github.com/user-attachments/assets/ecc18e5b-fc5a-44dc-bb37-22825f07792f
+https://github.com/user-attachments/assets/29884017-4b7d-4775-b1e1-ce1e07f28f69
 
 ## What this is
 
