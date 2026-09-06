@@ -29,7 +29,7 @@
 
 ## Demo
 
-_(coming soon)_
+https://github.com/user-attachments/assets/63d089ac-7645-4d22-bcf1-5449e2c252ad
 
 ## What this is
 
