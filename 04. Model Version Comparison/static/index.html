@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Version Comparison</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --code-bg: #f0f1f4;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+    --accent-weak: #16a34a;
+    --accent-medium: #d97706;
+    --accent-strong: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --code-bg: #262a33;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+      --accent-weak: #4ade80;
+      --accent-medium: #fbbf24;
+      --accent-strong: #f87171;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+
+  header { text-align: center; margin-bottom: 2rem; }
+  h1 {
+    font-size: 1.7rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.98rem;
+  }
+
+  .composer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  textarea {
+    width: 100%;
+    font-family: inherit;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: vertical;
+  }
+
+  #prompt {
+    height: 4.5rem;
+    font-size: 1.02rem;
+    padding: 0;
+  }
+  #prompt::placeholder { color: var(--text-muted); }
+
+  .composer-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+  }
+
+  button#run {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    padding: 0.6rem 1.4rem;
+    font-size: 0.98rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button#run:hover:not(:disabled) { background: var(--primary-hover); }
+  button#run:active:not(:disabled) { transform: scale(0.98); }
+  button#run:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+  }
+  @media (max-width: 980px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .box-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .badge {
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .box-weak .badge { background: var(--accent-weak); }
+  .box-medium .badge { background: var(--accent-medium); }
+  .box-strong .badge { background: var(--accent-strong); }
+
+  .box-header h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .box-header span {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    padding: 0.6rem 1.1rem;
+    background: var(--code-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  .stats strong { color: var(--text); font-weight: 600; }
+
+  .output {
+    padding: 1rem 1.1rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    overflow-y: auto;
+    height: 340px;
+  }
+
+  .output.loading {
+    color: var(--text-muted);
+    font-style: italic;
+    animation: pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  /* Rendered markdown */
+  .output p { margin: 0 0 0.75em; }
+  .output p:last-child { margin-bottom: 0; }
+  .output ul, .output ol { margin: 0 0 0.75em 1.25em; padding: 0; }
+  .output li { margin-bottom: 0.25em; }
+  .output h3, .output h4, .output h5 {
+    margin: 0.9em 0 0.4em;
+    font-size: 1em;
+    font-weight: 700;
+  }
+  .output h3:first-child, .output h4:first-child, .output h5:first-child { margin-top: 0; }
+  .output code {
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .output pre {
+    background: var(--code-bg);
+    padding: 0.75em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0 0 0.75em;
+  }
+  .output pre code { background: none; padding: 0; }
+  .output a { color: var(--primary); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Model Version Comparison</h1>
+    <p>Send the same prompt to a weak, medium, and strong model, and compare speed, tokens, and cost.</p>
+  </header>
+
+  <div class="composer">
+    <textarea id="prompt" placeholder="Enter your task..."></textarea>
+    <div class="composer-footer">
+      <button id="run">Run</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="box box-weak">
+      <div class="box-header">
+        <span class="badge">W</span>
+        <h2>Weak<span id="model-weak">&nbsp;</span></h2>
+      </div>
+      <div class="stats" id="stats-weak">—</div>
+      <div class="output" id="out-weak"></div>
+    </div>
+    <div class="box box-medium">
+      <div class="box-header">
+        <span class="badge">M</span>
+        <h2>Medium<span id="model-medium">&nbsp;</span></h2>
+      </div>
+      <div class="stats" id="stats-medium">—</div>
+      <div class="output" id="out-medium"></div>
+    </div>
+    <div class="box box-strong">
+      <div class="box-header">
+        <span class="badge">S</span>
+        <h2>Strong<span id="model-strong">&nbsp;</span></h2>
+      </div>
+      <div class="stats" id="stats-strong">—</div>
+      <div class="output" id="out-strong"></div>
+    </div>
+  </div>
+
+<script>
+const runButton = document.getElementById('run');
+const promptEl = document.getElementById('prompt');
+
+const boxes = {
+  weak: {
+    model: document.getElementById('model-weak'),
+    stats: document.getElementById('stats-weak'),
+    output: document.getElementById('out-weak'),
+  },
+  medium: {
+    model: document.getElementById('model-medium'),
+    stats: document.getElementById('stats-medium'),
+    output: document.getElementById('out-medium'),
+  },
+  strong: {
+    model: document.getElementById('model-strong'),
+    stats: document.getElementById('stats-strong'),
+    output: document.getElementById('out-strong'),
+  },
+};
+
+// Minimal, dependency-free markdown renderer covering what LLM answers typically use:
+// fenced/inline code, bold/italic, headings, lists, links, and paragraphs.
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderMarkdown(raw) {
+  if (!raw) return '';
+
+  // Pull out fenced code blocks first so nothing inside them gets reinterpreted.
+  const codeBlocks = [];
+  let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return `${codeBlocks.length - 1}`;
+  });
+
+  text = escapeHtml(text);
+  text = text.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  const lines = text.split('\n');
+  let html = '';
+  let listType = null;
+  let paragraph = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      html += `<p>${paragraph.join('<br>')}</p>`;
+      paragraph = [];
+    }
+  };
+  const closeList = () => {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  };
+
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,3})\s+(.*)/);
+    const ordered = line.match(/^\s*\d+\.\s+(.*)/);
+    const unordered = line.match(/^\s*[-*]\s+(.*)/);
+
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = heading[1].length + 2; // keep below the box's own <h2> title
+      html += `<h${level}>${heading[2]}</h${level}>`;
+    } else if (ordered) {
+      flushParagraph();
+      if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; }
+      html += `<li>${ordered[1]}</li>`;
+    } else if (unordered) {
+      flushParagraph();
+      if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; }
+      html += `<li>${unordered[1]}</li>`;
+    } else if (line.trim() === '') {
+      flushParagraph();
+      closeList();
+    } else {
+      closeList();
+      paragraph.push(line);
+    }
+  }
+  flushParagraph();
+  closeList();
+
+  return html.replace(/(\d+)/g, (_, i) => codeBlocks[i]);
+}
+
+function formatStats(d) {
+  const parts = [];
+  parts.push(`<strong>${d.elapsed_ms} ms</strong>`);
+  if (d.total_tokens != null) {
+    parts.push(`tokens: <strong>${d.total_tokens}</strong> (${d.prompt_tokens}+${d.completion_tokens})`);
+  } else {
+    parts.push('tokens: —');
+  }
+  parts.push(d.cost_usd != null ? `cost: <strong>$${d.cost_usd.toFixed(6)}</strong>` : 'cost: —');
+  return parts.join(' · ');
+}
+
+async function runTier(url, prompt, box) {
+  box.output.textContent = 'Loading...';
+  box.output.classList.add('loading');
+  box.stats.innerHTML = '…';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!res.ok) {
+      box.output.textContent = `Error: request failed with status ${res.status}`;
+      box.stats.innerHTML = '—';
+      return;
+    }
+    const data = await res.json();
+    box.model.textContent = data.model;
+    box.output.innerHTML = renderMarkdown(data.answer);
+    box.stats.innerHTML = formatStats(data);
+  } catch (e) {
+    box.output.textContent = `Error: ${e}`;
+    box.stats.innerHTML = '—';
+  } finally {
+    box.output.classList.remove('loading');
+  }
+}
+
+runButton.addEventListener('click', () => {
+  const prompt = promptEl.value.trim();
+  if (!prompt) return;
+
+  runButton.disabled = true;
+  const tasks = [
+    runTier('/api/weak', prompt, boxes.weak),
+    runTier('/api/medium', prompt, boxes.medium),
+    runTier('/api/strong', prompt, boxes.strong),
+  ];
+
+  Promise.allSettled(tasks).then(() => {
+    runButton.disabled = false;
+  });
+});
+</script>
+</body>
+</html>
