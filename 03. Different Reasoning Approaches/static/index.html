@@ -14,6 +14,7 @@
     --text-muted: #6b7280;
     --primary: #4f46e5;
     --primary-hover: #4338ca;
+    --code-bg: #f0f1f4;
     --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
     --accent-1: #2563eb;
     --accent-2: #7c3aed;
@@ -29,6 +30,7 @@
       --text-muted: #9aa1ac;
       --primary: #6366f1;
       --primary-hover: #7c7ff2;
+      --code-bg: #262a33;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
       --accent-1: #60a5fa;
       --accent-2: #a78bfa;
@@ -112,6 +114,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.25rem;
+    align-items: start;
   }
   @media (max-width: 760px) {
     .grid { grid-template-columns: 1fr; }
@@ -123,8 +126,6 @@
     border-radius: 14px;
     box-shadow: var(--shadow);
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
   }
 
   .box-header {
@@ -164,13 +165,17 @@
     font-weight: 400;
   }
 
-  .box textarea {
-    height: 280px;
+  /* Output content, whether standalone (boxes 1/2) or nested in a sub-box (3/4) */
+  .output {
     padding: 1rem 1.1rem;
     font-size: 0.9rem;
-    line-height: 1.5;
+    line-height: 1.55;
+    overflow-y: auto;
   }
-  .box textarea.loading {
+  .box > .output { height: 280px; }
+  .subbox .output { max-height: 170px; }
+
+  .output.loading {
     color: var(--text-muted);
     font-style: italic;
     animation: pulse 1.3s ease-in-out infinite;
@@ -179,6 +184,44 @@
     0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
   }
+
+  .subbox + .subbox { border-top: 1px solid var(--border); }
+  .subbox-title {
+    padding: 0.7rem 1.1rem 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  /* Rendered markdown */
+  .output p { margin: 0 0 0.75em; }
+  .output p:last-child { margin-bottom: 0; }
+  .output ul, .output ol { margin: 0 0 0.75em 1.25em; padding: 0; }
+  .output li { margin-bottom: 0.25em; }
+  .output h3, .output h4, .output h5 {
+    margin: 0.9em 0 0.4em;
+    font-size: 1em;
+    font-weight: 700;
+  }
+  .output h3:first-child, .output h4:first-child, .output h5:first-child { margin-top: 0; }
+  .output code {
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .output pre {
+    background: var(--code-bg);
+    padding: 0.75em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0 0 0.75em;
+  }
+  .output pre code { background: none; padding: 0; }
+  .output a { color: var(--primary); }
 </style>
 </head>
 <body>
@@ -200,28 +243,46 @@
         <span class="badge">1</span>
         <h2>Direct answer<span>No extra instructions</span></h2>
       </div>
-      <textarea id="out-direct" readonly></textarea>
+      <div class="output" id="out-direct"></div>
     </div>
     <div class="box box-2">
       <div class="box-header">
         <span class="badge">2</span>
         <h2>Step by step<span>"Решай пошагово" added to the prompt</span></h2>
       </div>
-      <textarea id="out-step" readonly></textarea>
+      <div class="output" id="out-step"></div>
     </div>
     <div class="box box-3">
       <div class="box-header">
         <span class="badge">3</span>
         <h2>Self-planned prompt<span>Model writes the prompt, then answers it</span></h2>
       </div>
-      <textarea id="out-planned" readonly></textarea>
+      <div class="subbox">
+        <div class="subbox-title">Generated prompt</div>
+        <div class="output" id="planned-prompt"></div>
+      </div>
+      <div class="subbox">
+        <div class="subbox-title">Answer</div>
+        <div class="output" id="planned-answer"></div>
+      </div>
     </div>
     <div class="box box-4">
       <div class="box-header">
         <span class="badge">4</span>
         <h2>Expert panel<span>Analyst / engineer / critic, independently</span></h2>
       </div>
-      <textarea id="out-experts" readonly></textarea>
+      <div class="subbox">
+        <div class="subbox-title">Analyst</div>
+        <div class="output" id="expert-analyst"></div>
+      </div>
+      <div class="subbox">
+        <div class="subbox-title">Engineer</div>
+        <div class="output" id="expert-engineer"></div>
+      </div>
+      <div class="subbox">
+        <div class="subbox-title">Critic</div>
+        <div class="output" id="expert-critic"></div>
+      </div>
     </div>
   </div>
 
@@ -230,12 +291,97 @@ const runButton = document.getElementById('run');
 const promptEl = document.getElementById('prompt');
 const outDirect = document.getElementById('out-direct');
 const outStep = document.getElementById('out-step');
-const outPlanned = document.getElementById('out-planned');
-const outExperts = document.getElementById('out-experts');
+const plannedPrompt = document.getElementById('planned-prompt');
+const plannedAnswer = document.getElementById('planned-answer');
+const expertAnalyst = document.getElementById('expert-analyst');
+const expertEngineer = document.getElementById('expert-engineer');
+const expertCritic = document.getElementById('expert-critic');
 
-async function fetchBox(url, prompt, el, render) {
-  el.value = 'Loading...';
-  el.classList.add('loading');
+// Minimal, dependency-free markdown renderer covering what LLM answers typically use:
+// fenced/inline code, bold/italic, headings, lists, links, and paragraphs.
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderMarkdown(raw) {
+  if (!raw) return '';
+
+  // Pull out fenced code blocks first so nothing inside them gets reinterpreted.
+  const codeBlocks = [];
+  let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return ` ${codeBlocks.length - 1} `;
+  });
+
+  text = escapeHtml(text);
+  text = text.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  const lines = text.split('\n');
+  let html = '';
+  let listType = null;
+  let paragraph = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      html += `<p>${paragraph.join('<br>')}</p>`;
+      paragraph = [];
+    }
+  };
+  const closeList = () => {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  };
+
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,3})\s+(.*)/);
+    const ordered = line.match(/^\s*\d+\.\s+(.*)/);
+    const unordered = line.match(/^\s*[-*]\s+(.*)/);
+
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = heading[1].length + 2; // keep below the box's own <h2> title
+      html += `<h${level}>${heading[2]}</h${level}>`;
+    } else if (ordered) {
+      flushParagraph();
+      if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; }
+      html += `<li>${ordered[1]}</li>`;
+    } else if (unordered) {
+      flushParagraph();
+      if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; }
+      html += `<li>${unordered[1]}</li>`;
+    } else if (line.trim() === '') {
+      flushParagraph();
+      closeList();
+    } else {
+      closeList();
+      paragraph.push(line);
+    }
+  }
+  flushParagraph();
+  closeList();
+
+  return html.replace(/ (\d+) /g, (_, i) => codeBlocks[i]);
+}
+
+function setLoading(elements) {
+  elements.forEach((el) => {
+    el.textContent = 'Loading...';
+    el.classList.add('loading');
+  });
+}
+
+function clearLoading(elements) {
+  elements.forEach((el) => el.classList.remove('loading'));
+}
+
+async function runRequest(url, prompt, elements, onData) {
+  setLoading(elements);
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -243,15 +389,19 @@ async function fetchBox(url, prompt, el, render) {
       body: JSON.stringify({ prompt }),
     });
     if (!res.ok) {
-      el.value = `Error: request failed with status ${res.status}`;
+      elements.forEach((el) => {
+        el.textContent = `Error: request failed with status ${res.status}`;
+      });
       return;
     }
     const data = await res.json();
-    el.value = render(data);
+    onData(data);
   } catch (e) {
-    el.value = `Error: ${e}`;
+    elements.forEach((el) => {
+      el.textContent = `Error: ${e}`;
+    });
   } finally {
-    el.classList.remove('loading');
+    clearLoading(elements);
   }
 }
 
@@ -261,14 +411,21 @@ runButton.addEventListener('click', () => {
 
   runButton.disabled = true;
   const tasks = [
-    fetchBox('/api/direct', prompt, outDirect, (d) => d.answer),
-    fetchBox('/api/step-by-step', prompt, outStep, (d) => d.answer),
-    fetchBox('/api/planned', prompt, outPlanned, (d) =>
-      `Generated prompt:\n${d.generated_prompt}\n\nAnswer:\n${d.answer}`
-    ),
-    fetchBox('/api/experts', prompt, outExperts, (d) =>
-      `Analyst:\n${d.analyst}\n\nEngineer:\n${d.engineer}\n\nCritic:\n${d.critic}`
-    ),
+    runRequest('/api/direct', prompt, [outDirect], (d) => {
+      outDirect.innerHTML = renderMarkdown(d.answer);
+    }),
+    runRequest('/api/step-by-step', prompt, [outStep], (d) => {
+      outStep.innerHTML = renderMarkdown(d.answer);
+    }),
+    runRequest('/api/planned', prompt, [plannedPrompt, plannedAnswer], (d) => {
+      plannedPrompt.innerHTML = renderMarkdown(d.generated_prompt);
+      plannedAnswer.innerHTML = renderMarkdown(d.answer);
+    }),
+    runRequest('/api/experts', prompt, [expertAnalyst, expertEngineer, expertCritic], (d) => {
+      expertAnalyst.innerHTML = renderMarkdown(d.analyst);
+      expertEngineer.innerHTML = renderMarkdown(d.engineer);
+      expertCritic.innerHTML = renderMarkdown(d.critic);
+    }),
   ];
 
   Promise.allSettled(tasks).then(() => {

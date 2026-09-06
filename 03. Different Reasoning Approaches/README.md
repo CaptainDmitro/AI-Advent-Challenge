@@ -35,9 +35,9 @@ A small web app: one prompt box, a Run button, and four output boxes showing the
 3. **Self-planned prompt** — the model is first asked to write a prompt for solving the task, then that generated prompt is sent to get the final answer (both are shown)
 4. **Expert panel** — three independent API calls, one per persona (analyst / engineer / critic), each answering the task from their own point of view
 
-All four run in parallel when you click Run, and each box fills in independently as its call finishes.
+All four run in parallel when you click Run, and each box fills in independently as its call finishes. Boxes 3 and 4 are split into labeled sub-sections (generated prompt / answer, and one per expert) for readability, and all output is rendered as Markdown.
 
-A Rust ([axum](https://github.com/tokio-rs/axum)) server holds the API key and proxies the LLM calls; the frontend is a single dependency-free HTML/JS page.
+A Rust ([axum](https://github.com/tokio-rs/axum)) server holds the API key and proxies the LLM calls; the frontend is a single dependency-free HTML/JS page (including its own small Markdown renderer, so there's no external JS dependency).
 
 ## Run
 
