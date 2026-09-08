@@ -54,12 +54,17 @@ jobs:
         with:
           workspaces: ${{ matrix.dir }}
 
+      # Non-blocking: several lessons predate this pipeline and were never run
+      # through rustfmt/clippy. Surface issues without failing already-finished,
+      # already-recorded lessons on style alone.
       - name: cargo fmt --check
         working-directory: ${{ matrix.dir }}
+        continue-on-error: true
         run: cargo fmt --check
 
       - name: cargo clippy
         working-directory: ${{ matrix.dir }}
+        continue-on-error: true
         run: cargo clippy --all-targets -- -D warnings
 
       - name: cargo build --release
