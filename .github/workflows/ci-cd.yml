@@ -3,7 +3,12 @@ name: CI/CD
 on:
   push:
     branches: [master]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      lessons:
+        description: 'Comma-separated lesson numbers to deploy (e.g. 03,06), or "all". Leave empty to deploy only the latest lesson.'
+        required: false
+        type: string
 
 jobs:
   discover:
@@ -11,17 +16,21 @@ jobs:
     outputs:
       all: ${{ steps.scan.outputs.all }}
       web: ${{ steps.scan.outputs.web }}
+      deploy: ${{ steps.scan.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Find lesson crates
+      - name: Find lesson crates and pick deploy targets
         id: scan
+        env:
+          LESSONS_INPUT: ${{ github.event.inputs.lessons }}
         run: |
           set -euo pipefail
           mapfile -t dirs < <(find . -maxdepth 2 -name Cargo.toml -exec dirname {} \; | sed 's|^\./||' | sort)
 
           all_json=$(printf '%s\n' "${dirs[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
 
+          # Every lesson dir that's a web app (depends on axum).
           web_dirs=()
           for d in "${dirs[@]}"; do
             if grep -qE '^axum( |=)' "$d/Cargo.toml"; then
@@ -30,10 +39,46 @@ jobs:
           done
           web_json=$(printf '%s\n' "${web_dirs[@]:-}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
 
+          # The highest-numbered lesson folder overall ("today's lesson"),
+          # since `dirs` is already sorted and folder names are zero-padded.
+          latest_dir="${dirs[-1]}"
+          latest_nn=$(basename "$latest_dir" | grep -oE '^[0-9]+')
+
+          nn_of() { basename "$1" | grep -oE '^[0-9]+'; }
+
+          selected=()
+          if [ -n "${LESSONS_INPUT:-}" ]; then
+            if [ "$LESSONS_INPUT" = "all" ]; then
+              selected=("${web_dirs[@]:-}")
+            else
+              IFS=',' read -ra wanted <<< "$LESSONS_INPUT"
+              for raw in "${wanted[@]}"; do
+                trimmed=$(echo "$raw" | tr -d '[:space:]')
+                [ -z "$trimmed" ] && continue
+                padded=$(printf '%02d' "$((10#$trimmed))")
+                for d in "${web_dirs[@]:-}"; do
+                  if [ "$(nn_of "$d")" = "$padded" ]; then
+                    selected+=("$d")
+                  fi
+                done
+              done
+            fi
+          else
+            for d in "${web_dirs[@]:-}"; do
+              if [ "$(nn_of "$d")" = "$latest_nn" ]; then
+                selected+=("$d")
+              fi
+            done
+          fi
+          deploy_json=$(printf '%s\n' "${selected[@]:-}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
           echo "all=$all_json" >> "$GITHUB_OUTPUT"
           echo "web=$web_json" >> "$GITHUB_OUTPUT"
+          echo "deploy=$deploy_json" >> "$GITHUB_OUTPUT"
           echo "All crates: $all_json"
           echo "Web (deployable) crates: $web_json"
+          echo "Latest lesson: $latest_dir"
+          echo "Deploy targets this run: $deploy_json"
 
   build-test:
     needs: discover
@@ -77,12 +122,12 @@ jobs:
 
   deploy:
     needs: [discover, build-test]
-    if: github.ref == 'refs/heads/master' && needs.discover.outputs.web != '[]'
+    if: needs.discover.outputs.deploy != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        dir: ${{ fromJSON(needs.discover.outputs.web) }}
+        dir: ${{ fromJSON(needs.discover.outputs.deploy) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -123,10 +168,12 @@ jobs:
           VDS_HOST: ${{ vars.VDS_HOST }}
         run: |
           set -euo pipefail
+          : "${SSH_KEY:?VDS_SSH_KEY secret is empty}"
+          : "${VDS_HOST:?VDS_HOST repository variable is empty}"
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VDS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "$VDS_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload binary
         run: |
@@ -156,10 +203,14 @@ jobs:
 
           env_content="PORT=$port
           OPENAI_API_KEY=$OPENAI_API_KEY"
-          [ -n "$OPENAI_BASE_URL" ] && env_content="$env_content
+          if [ -n "$OPENAI_BASE_URL" ]; then
+            env_content="$env_content
           OPENAI_BASE_URL=$OPENAI_BASE_URL"
-          [ -n "$OPENAI_MODEL" ] && env_content="$env_content
+          fi
+          if [ -n "$OPENAI_MODEL" ]; then
+            env_content="$env_content
           OPENAI_MODEL=$OPENAI_MODEL"
+          fi
           ssh -i ~/.ssh/deploy_key "$remote" "cat > $app_dir/.env" <<< "$env_content"
 
           ssh -i ~/.ssh/deploy_key "$remote" "mkdir -p ~/.config/systemd/user && cat > ~/.config/systemd/user/$service.service" <<UNIT_EOF
