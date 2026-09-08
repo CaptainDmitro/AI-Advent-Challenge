@@ -53,7 +53,7 @@ Then open http://localhost:3000.
 | `OPENAI_MODEL` | no | `deepseek-v4-flash` |
 | `PORT` | no | `3000` |
 
-`OPENAI_BASE_URL` can point at any OpenAI-compatible server. `OPENAI_MODEL` only sets the *default* selection shown in the UI at startup — it must be `deepseek-v4-flash` or `deepseek-v4-pro`; anything else falls back to `deepseek-v4-flash`. The model actually used for any given message can be changed at any time via the Flash/Pro toggle.
+`OPENAI_BASE_URL` can point at any OpenAI-compatible server. `OPENAI_MODEL` does **not** affect the chat page's Flash/Pro toggle — that always starts on Flash regardless of this variable, since the page is a static file baked into the binary at compile time. `OPENAI_MODEL` only matters for requests to `/api/chat` that omit `model` (or send one the server doesn't recognize): it's the fallback used in that case, which in practice only comes up for direct API calls that bypass the web UI, not for anyone using the chat page itself. Must be `deepseek-v4-flash` or `deepseek-v4-pro`; anything else falls back to `deepseek-v4-flash`.
 
 ## Deploy
 
