@@ -144,6 +144,8 @@ jobs:
       - name: Configure environment and systemd unit
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
         run: |
           set -euo pipefail
           nn="${{ steps.meta.outputs.nn }}"
@@ -152,10 +154,13 @@ jobs:
           remote="${{ vars.VDS_USER }}@${{ vars.VDS_HOST }}"
           app_dir="apps/lesson-$nn"
 
-          ssh -i ~/.ssh/deploy_key "$remote" "cat > $app_dir/.env" <<ENV_EOF
-          PORT=$port
-          OPENAI_API_KEY=$OPENAI_API_KEY
-          ENV_EOF
+          env_content="PORT=$port
+          OPENAI_API_KEY=$OPENAI_API_KEY"
+          [ -n "$OPENAI_BASE_URL" ] && env_content="$env_content
+          OPENAI_BASE_URL=$OPENAI_BASE_URL"
+          [ -n "$OPENAI_MODEL" ] && env_content="$env_content
+          OPENAI_MODEL=$OPENAI_MODEL"
+          ssh -i ~/.ssh/deploy_key "$remote" "cat > $app_dir/.env" <<< "$env_content"
 
           ssh -i ~/.ssh/deploy_key "$remote" "mkdir -p ~/.config/systemd/user && cat > ~/.config/systemd/user/$service.service" <<UNIT_EOF
           [Unit]
