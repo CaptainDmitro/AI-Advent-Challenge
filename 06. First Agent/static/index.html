@@ -137,6 +137,13 @@
     white-space: pre;
   }
   .bubble pre code { background: none; padding: 0; }
+  .bubble h4, .bubble h5, .bubble h6 {
+    margin: 0.6em 0 0.3em;
+    font-size: 1em;
+    line-height: 1.3;
+    font-weight: 700;
+  }
+  .bubble h4:first-child, .bubble h5:first-child, .bubble h6:first-child { margin-top: 0; }
 
   .composer {
     flex: none;
@@ -416,8 +423,10 @@ function escapeHtml(s) {
 }
 
 // Minimal, dependency-free markdown covering what LLM replies typically use:
-// fenced/inline code and bold/italic. Line breaks are preserved by the
-// bubble's `white-space: pre-wrap`, so no paragraph handling is needed here.
+// fenced/inline code, headings, and bold/italic. Line breaks are preserved
+// by the bubble's `white-space: pre-wrap`, so no paragraph/list handling is
+// needed here - but headings need an actual tag, since a literal "###" left
+// in the text just reads as clutter rather than a heading.
 function renderMarkdown(raw) {
   const codeBlocks = [];
   let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
@@ -426,6 +435,10 @@ function renderMarkdown(raw) {
   });
 
   text = escapeHtml(text);
+  text = text.replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, content) => {
+    const level = Math.min(hashes.length, 3) + 3; // # -> h4, ## -> h5, ###+ -> h6
+    return `<h${level}>${content}</h${level}>`;
+  });
   text = text.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
