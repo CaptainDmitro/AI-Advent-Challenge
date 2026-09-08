@@ -1,0 +1,191 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      all: ${{ steps.scan.outputs.all }}
+      web: ${{ steps.scan.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find lesson crates
+        id: scan
+        run: |
+          set -euo pipefail
+          mapfile -t dirs < <(find . -maxdepth 2 -name Cargo.toml -exec dirname {} \; | sed 's|^\./||' | sort)
+
+          all_json=$(printf '%s\n' "${dirs[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+          web_dirs=()
+          for d in "${dirs[@]}"; do
+            if grep -qE '^axum( |=)' "$d/Cargo.toml"; then
+              web_dirs+=("$d")
+            fi
+          done
+          web_json=$(printf '%s\n' "${web_dirs[@]:-}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+          echo "all=$all_json" >> "$GITHUB_OUTPUT"
+          echo "web=$web_json" >> "$GITHUB_OUTPUT"
+          echo "All crates: $all_json"
+          echo "Web (deployable) crates: $web_json"
+
+  build-test:
+    needs: discover
+    if: needs.discover.outputs.all != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.all) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.dir }}
+
+      - name: cargo fmt --check
+        working-directory: ${{ matrix.dir }}
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: ${{ matrix.dir }}
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo build --release
+        working-directory: ${{ matrix.dir }}
+        run: cargo build --release
+
+      - name: cargo test
+        working-directory: ${{ matrix.dir }}
+        run: cargo test
+
+  deploy:
+    needs: [discover, build-test]
+    if: github.ref == 'refs/heads/master' && needs.discover.outputs.web != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.web) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install musl build tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.dir }}
+          key: musl
+
+      - name: cargo build --release --target musl
+        working-directory: ${{ matrix.dir }}
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Compute lesson metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          dir="${{ matrix.dir }}"
+          nn=$(basename "$dir" | grep -oE '^[0-9]+')
+          port=$((10#$nn + 4000))
+          bin=$(awk -F'"' '/^name *=/{print $2; exit}' "$dir/Cargo.toml")
+          {
+            echo "nn=$nn"
+            echo "port=$port"
+            echo "service=ai-advent-lesson-$nn"
+            echo "bin=$bin"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VDS_SSH_KEY }}
+          VDS_HOST: ${{ vars.VDS_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VDS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload binary
+        run: |
+          set -euo pipefail
+          dir="${{ matrix.dir }}"
+          nn="${{ steps.meta.outputs.nn }}"
+          bin="${{ steps.meta.outputs.bin }}"
+          remote="${{ vars.VDS_USER }}@${{ vars.VDS_HOST }}"
+          app_dir="apps/lesson-$nn"
+
+          ssh -i ~/.ssh/deploy_key "$remote" "mkdir -p $app_dir"
+          scp -i ~/.ssh/deploy_key "$dir/target/x86_64-unknown-linux-musl/release/$bin" "$remote:$app_dir/app.new"
+          ssh -i ~/.ssh/deploy_key "$remote" "chmod +x $app_dir/app.new && mv $app_dir/app.new $app_dir/app"
+
+      - name: Configure environment and systemd unit
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          nn="${{ steps.meta.outputs.nn }}"
+          port="${{ steps.meta.outputs.port }}"
+          service="${{ steps.meta.outputs.service }}"
+          remote="${{ vars.VDS_USER }}@${{ vars.VDS_HOST }}"
+          app_dir="apps/lesson-$nn"
+
+          ssh -i ~/.ssh/deploy_key "$remote" "cat > $app_dir/.env" <<ENV_EOF
+          PORT=$port
+          OPENAI_API_KEY=$OPENAI_API_KEY
+          ENV_EOF
+
+          ssh -i ~/.ssh/deploy_key "$remote" "mkdir -p ~/.config/systemd/user && cat > ~/.config/systemd/user/$service.service" <<UNIT_EOF
+          [Unit]
+          Description=AI Advent Challenge lesson $nn
+          After=network.target
+
+          [Service]
+          WorkingDirectory=%h/$app_dir
+          EnvironmentFile=%h/$app_dir/.env
+          ExecStart=%h/$app_dir/app
+          Restart=on-failure
+
+          [Install]
+          WantedBy=default.target
+          UNIT_EOF
+
+          remote_cmd='export XDG_RUNTIME_DIR=/run/user/$(id -u); systemctl --user daemon-reload && systemctl --user enable '"$service"' && systemctl --user restart '"$service"
+          ssh -i ~/.ssh/deploy_key "$remote" "$remote_cmd"
+
+      - name: Verify service is up
+        run: |
+          set -euo pipefail
+          port="${{ steps.meta.outputs.port }}"
+          remote="${{ vars.VDS_USER }}@${{ vars.VDS_HOST }}"
+          service="${{ steps.meta.outputs.service }}"
+
+          for i in 1 2 3 4 5; do
+            sleep 2
+            remote_cmd='export XDG_RUNTIME_DIR=/run/user/$(id -u); systemctl --user is-active '"$service"
+            if ssh -i ~/.ssh/deploy_key "$remote" "$remote_cmd" | grep -q '^active$'; then
+              echo "Service $service is active."
+              exit 0
+            fi
+          done
+          echo "Service $service did not become active in time." >&2
+          remote_cmd='export XDG_RUNTIME_DIR=/run/user/$(id -u); systemctl --user status '"$service"' --no-pager -l'
+          ssh -i ~/.ssh/deploy_key "$remote" "$remote_cmd" || true
+          exit 1
