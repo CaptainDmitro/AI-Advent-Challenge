@@ -19,6 +19,10 @@
 Результат:
 Агент принимает запрос и корректно вызывает LLM через API
 
+## Demo
+
+https://github.com/user-attachments/assets/ff01b8fe-45d3-452b-ab5b-195f6d3d5110
+
 ## What this is
 
 A small web chat backed by an `Agent` struct (`src/main.rs`) that owns the conversation history and the LLM call itself — the HTTP handlers are thin wrappers that just call `agent.respond(message, options)`. Unlike a single inline API call, the agent:
