@@ -175,6 +175,109 @@
 
   .composer-footer .actions { display: flex; gap: 0.6rem; }
 
+  .model-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .model-row .model-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .model-toggle { display: flex; gap: 0.3rem; }
+  .model-toggle button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.3rem 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 7px;
+  }
+  .model-toggle button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+
+  details.advanced {
+    margin-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+  }
+  details.advanced summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    list-style: none;
+  }
+  details.advanced summary::-webkit-details-marker { display: none; }
+  details.advanced summary::before {
+    content: '▸ ';
+  }
+  details.advanced[open] summary::before {
+    content: '▾ ';
+  }
+  .advanced-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin-top: 0.7rem;
+  }
+  .slider-row, .field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .slider-row label, .field-row label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    width: 6.5rem;
+    flex: none;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--primary);
+  }
+  .slider-row .range-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    width: 2rem;
+    text-align: right;
+  }
+  .field-row input[type="number"] {
+    width: 7rem;
+  }
+  .stop-row { align-items: flex-start; }
+  .stop-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    flex: 1;
+  }
+  input[type="number"], input[type="text"].stop-input {
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.35rem 0.5rem;
+  }
+  #advanced-reset {
+    align-self: flex-start;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.8rem;
+    font-size: 0.78rem;
+  }
+  #advanced-reset:hover { color: var(--text); border-color: var(--text-muted); }
+
   button {
     border: none;
     border-radius: 9px;
@@ -213,6 +316,40 @@
 
   <div class="composer">
     <textarea id="prompt" placeholder="Ask the agent something..."></textarea>
+
+    <div class="model-row">
+      <span class="model-label">Model</span>
+      <div class="model-toggle" id="model-toggle">
+        <button type="button" class="active" data-model="deepseek-v4-flash">⚡ Flash</button>
+        <button type="button" data-model="deepseek-v4-pro">🧠 Pro</button>
+      </div>
+    </div>
+
+    <details class="advanced">
+      <summary>Advanced</summary>
+      <div class="advanced-body">
+        <div class="slider-row">
+          <label for="temperature">Temperature</label>
+          <input type="range" id="temperature" min="0" max="2" step="0.1" value="1">
+          <span class="range-label" id="temperature-value">1.0</span>
+        </div>
+        <div class="field-row">
+          <label for="max-tokens">Max tokens</label>
+          <input type="number" id="max-tokens" min="1" placeholder="no limit">
+        </div>
+        <div class="field-row stop-row">
+          <label>Stop sequences</label>
+          <div class="stop-inputs">
+            <input type="text" class="stop-input" placeholder="Stop 1">
+            <input type="text" class="stop-input" placeholder="Stop 2">
+            <input type="text" class="stop-input" placeholder="Stop 3">
+            <input type="text" class="stop-input" placeholder="Stop 4">
+          </div>
+        </div>
+        <button id="advanced-reset" type="button">Reset advanced settings</button>
+      </div>
+    </details>
+
     <div class="composer-footer">
       <span class="hint">Enter to send &middot; Shift+Enter for a new line</span>
       <div class="actions">
@@ -228,6 +365,51 @@ const emptyState = document.getElementById('empty-state');
 const promptEl = document.getElementById('prompt');
 const sendButton = document.getElementById('send');
 const resetButton = document.getElementById('reset');
+
+const modelToggle = document.getElementById('model-toggle');
+let selectedModel = 'deepseek-v4-flash';
+modelToggle.addEventListener('click', (e) => {
+  const button = e.target.closest('button[data-model]');
+  if (!button) return;
+  selectedModel = button.dataset.model;
+  modelToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === button));
+});
+
+const temperatureEl = document.getElementById('temperature');
+const temperatureValueEl = document.getElementById('temperature-value');
+const maxTokensEl = document.getElementById('max-tokens');
+const stopInputs = Array.from(document.querySelectorAll('.stop-input'));
+const advancedResetButton = document.getElementById('advanced-reset');
+
+temperatureEl.addEventListener('input', () => {
+  temperatureValueEl.textContent = parseFloat(temperatureEl.value).toFixed(1);
+});
+
+advancedResetButton.addEventListener('click', () => {
+  temperatureEl.value = '1';
+  temperatureValueEl.textContent = '1.0';
+  maxTokensEl.value = '';
+  stopInputs.forEach((input) => { input.value = ''; });
+});
+
+// Collects the current advanced settings into the shape /api/chat expects.
+// max_tokens/stop are only included when actually set - an empty control
+// means "let the API use its own default", not "send an empty value".
+function chatOptions() {
+  const options = { model: selectedModel, temperature: parseFloat(temperatureEl.value) };
+
+  const maxTokens = parseInt(maxTokensEl.value, 10);
+  if (!Number.isNaN(maxTokens)) {
+    options.max_tokens = maxTokens;
+  }
+
+  const stop = stopInputs.map((input) => input.value.trim()).filter((v) => v.length > 0);
+  if (stop.length > 0) {
+    options.stop = stop;
+  }
+
+  return options;
+}
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -285,7 +467,7 @@ async function send() {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, ...chatOptions() }),
     });
     replyBubble.classList.remove('loading');
     if (!res.ok) {

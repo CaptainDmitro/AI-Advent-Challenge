@@ -18,6 +18,12 @@ struct Message {
 struct ChatCompletionRequest {
     model: String,
     messages: Vec<Message>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -47,6 +53,22 @@ struct ErrorDetail {
 
 const SYSTEM_PROMPT: &str = "You are a helpful assistant. Answer clearly and concisely.";
 
+/// The only two models this agent is allowed to call - both live behind the
+/// same endpoint/key, so switching between them is just a different `model`
+/// value on the same request, not a different provider.
+const MODEL_FLASH: &str = "deepseek-v4-flash";
+const MODEL_PRO: &str = "deepseek-v4-pro";
+
+/// Per-request overrides a caller may supply on top of the running
+/// conversation. Every field is optional; omitted ones are left out of the
+/// API request entirely rather than sent as an explicit null/default.
+struct ChatOptions {
+    model: Option<String>,
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+    stop: Option<Vec<String>>,
+}
+
 /// The agent: a standalone entity that owns the conversation history and knows
 /// how to turn a user message into an LLM call and back into a reply. Callers
 /// only ever see `respond`/`reset` - never the HTTP request/response shape.
@@ -54,17 +76,22 @@ struct Agent {
     client: reqwest::Client,
     endpoint: String,
     api_key: String,
-    model: String,
+    default_model: String,
     history: Mutex<Vec<Message>>,
 }
 
 impl Agent {
-    fn new(client: reqwest::Client, endpoint: String, api_key: String, model: String) -> Self {
+    fn new(
+        client: reqwest::Client,
+        endpoint: String,
+        api_key: String,
+        default_model: String,
+    ) -> Self {
         Self {
             client,
             endpoint,
             api_key,
-            model,
+            default_model,
             history: Mutex::new(vec![Message {
                 role: "system".to_string(),
                 content: SYSTEM_PROMPT.to_string(),
@@ -72,7 +99,18 @@ impl Agent {
         }
     }
 
-    async fn respond(&self, user_message: &str) -> String {
+    /// Only `MODEL_FLASH`/`MODEL_PRO` may ever be sent upstream - an
+    /// unrecognized or missing request falls back to this agent's default
+    /// rather than forwarding arbitrary client input to the API.
+    fn resolve_model(&self, requested: Option<&str>) -> String {
+        match requested {
+            Some(MODEL_FLASH) => MODEL_FLASH.to_string(),
+            Some(MODEL_PRO) => MODEL_PRO.to_string(),
+            _ => self.default_model.clone(),
+        }
+    }
+
+    async fn respond(&self, user_message: &str, options: ChatOptions) -> String {
         let messages = {
             let mut history = self.history.lock().unwrap();
             history.push(Message {
@@ -82,9 +120,23 @@ impl Agent {
             history.clone()
         };
 
+        let stop = options
+            .stop
+            .map(|s| {
+                s.into_iter()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .take(4)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|s| !s.is_empty());
+
         let request = ChatCompletionRequest {
-            model: self.model.clone(),
+            model: self.resolve_model(options.model.as_deref()),
             messages,
+            temperature: options.temperature,
+            max_tokens: options.max_tokens,
+            stop,
         };
 
         let response = match self
@@ -154,6 +206,10 @@ impl Agent {
 #[derive(Deserialize)]
 struct ChatRequest {
     message: String,
+    model: Option<String>,
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+    stop: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -165,7 +221,17 @@ async fn chat(
     State(agent): State<Arc<Agent>>,
     Json(req): Json<ChatRequest>,
 ) -> Json<ChatResponse> {
-    let reply = agent.respond(&req.message).await;
+    let reply = agent
+        .respond(
+            &req.message,
+            ChatOptions {
+                model: req.model,
+                temperature: req.temperature,
+                max_tokens: req.max_tokens,
+                stop: req.stop,
+            },
+        )
+        .await;
     Json(ChatResponse { reply })
 }
 
@@ -184,7 +250,12 @@ async fn index() -> Html<&'static str> {
 async fn main() {
     let base_url = std::env::var("OPENAI_BASE_URL")
         .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
-    let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "deepseek-v4-pro".to_string());
+    // Falls back to MODEL_FLASH if OPENAI_MODEL is unset or isn't one of the
+    // two models this agent is allowed to call.
+    let default_model = match std::env::var("OPENAI_MODEL") {
+        Ok(m) if m == MODEL_FLASH || m == MODEL_PRO => m,
+        _ => MODEL_FLASH.to_string(),
+    };
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
         eprintln!("Error: OPENAI_API_KEY environment variable is not set.");
         std::process::exit(1);
@@ -194,7 +265,7 @@ async fn main() {
         reqwest::Client::new(),
         format!("{}/chat/completions", base_url.trim_end_matches('/')),
         api_key,
-        model,
+        default_model,
     ));
 
     let app = Router::new()
@@ -243,5 +314,19 @@ mod tests {
         let history = agent.history_snapshot();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].role, "system");
+    }
+
+    #[test]
+    fn resolve_model_honors_an_allowed_request() {
+        let agent = test_agent();
+        assert_eq!(agent.resolve_model(Some(MODEL_PRO)), MODEL_PRO);
+        assert_eq!(agent.resolve_model(Some(MODEL_FLASH)), MODEL_FLASH);
+    }
+
+    #[test]
+    fn resolve_model_falls_back_to_the_default_otherwise() {
+        let agent = test_agent();
+        assert_eq!(agent.resolve_model(None), "test-model");
+        assert_eq!(agent.resolve_model(Some("gpt-4o")), "test-model");
     }
 }
