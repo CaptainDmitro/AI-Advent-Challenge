@@ -249,7 +249,7 @@ async fn index() -> Html<&'static str> {
 #[tokio::main]
 async fn main() {
     let base_url = std::env::var("OPENAI_BASE_URL")
-        .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+        .unwrap_or_else(|_| "https://api.deepseek.com".to_string());
     // Falls back to MODEL_FLASH if OPENAI_MODEL is unset or isn't one of the
     // two models this agent is allowed to call.
     let default_model = match std::env::var("OPENAI_MODEL") {
