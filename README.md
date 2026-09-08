@@ -15,7 +15,8 @@ Practice projects from an AI-focused course, one folder per lesson.
 
 ## CI/CD
 
-Every push to `master` runs [`.github/workflows/ci-cd.yml`](./.github/workflows/ci-cd.yml), which discovers every lesson crate automatically:
+Every push to `master` runs [`.github/workflows/ci-cd.yml`](./.github/workflows/ci-cd.yml): it builds, tests, and lints every lesson automatically, then deploys whichever lesson is newest (web-app lessons only) to a VDS. See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the full architecture, the secrets/variables inventory, and how to redeploy an older lesson on demand.
 
-1. **build-test** — `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt --check` for every lesson.
-2. **deploy** — for lessons that are web apps (depend on `axum`), cross-compiles a static `x86_64-unknown-linux-musl` binary and deploys it as a systemd user service on a VDS, reachable at `http://<VDS host>:400N` for lesson `N`.
+## Working with AI coding agents
+
+See [`AGENTS.md`](./AGENTS.md) for the conventions, environment constraints, and known-deferred issues an agent (or a new contributor) should know before touching this repo.
