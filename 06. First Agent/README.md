@@ -49,7 +49,7 @@ Then open http://localhost:3000.
 | Variable | Required | Default |
 |---|---|---|
 | `OPENAI_API_KEY` | yes | — |
-| `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` |
+| `OPENAI_BASE_URL` | no | `https://api.deepseek.com` |
 | `OPENAI_MODEL` | no | `deepseek-v4-flash` |
 | `PORT` | no | `3000` |
 
