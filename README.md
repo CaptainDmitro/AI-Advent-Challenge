@@ -12,6 +12,7 @@ Practice projects from an AI-focused course, one folder per lesson.
 | 04 | [Model Version Comparison](./04.%20Model%20Version%20Comparison) | Same prompt sent to a weak, medium, and strong model in parallel, comparing response time, tokens, and cost |
 | 05 | [Temperature Comparison](./05.%20Temperature%20Comparison) | Same prompt sampled 3x at temperature 0 / 0.7 / 1.2 to compare accuracy, creativity, and diversity |
 | 06 | [First Agent](./06.%20First%20Agent) | A minimal chat agent that encapsulates the LLM request/response cycle behind an `Agent` entity |
+| 07 | [Context Persistence](./07.%20Context%20Persistence) | The same agent, now saving and restoring its conversation history to a JSON file so it survives a restart |
 
 ## CI/CD
 
