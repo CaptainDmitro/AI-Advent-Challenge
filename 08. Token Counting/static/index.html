@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Counting</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --code-bg: #f0f1f4;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+    --bubble-user: #4f46e5;
+    --bubble-user-text: #ffffff;
+    --bubble-assistant: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --code-bg: #262a33;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+      --bubble-user: #6366f1;
+      --bubble-user-text: #ffffff;
+      --bubble-assistant: #1c1f26;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header { text-align: center; margin-bottom: 1rem; flex: none; }
+  h1 {
+    font-size: 1.7rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.98rem;
+  }
+
+  .stats-bar {
+    flex: none;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 0.6rem;
+    min-height: 1rem;
+  }
+
+  .limit-warning {
+    flex: none;
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 0.5rem 0.8rem;
+    border-radius: 10px;
+    margin-bottom: 0.6rem;
+    background: rgba(217, 119, 6, 0.12);
+    color: #b45309;
+    border: 1px solid rgba(217, 119, 6, 0.35);
+  }
+  .limit-warning.over {
+    background: rgba(220, 38, 38, 0.12);
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.35);
+  }
+
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    min-height: 0;
+  }
+
+  .empty-state {
+    margin: auto;
+    color: var(--text-muted);
+    text-align: center;
+    font-size: 0.95rem;
+  }
+
+  .bubble-row { display: flex; }
+  .bubble-row.user { justify-content: flex-end; }
+  .bubble-row.assistant { justify-content: flex-start; }
+
+  .bubble-wrap {
+    display: flex;
+    flex-direction: column;
+    max-width: 78%;
+    gap: 0.25rem;
+  }
+  .bubble-row.user .bubble-wrap { align-items: flex-end; }
+  .bubble-row.assistant .bubble-wrap { align-items: flex-start; }
+
+  .token-caption {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    padding: 0 0.2rem;
+  }
+
+  .bubble {
+    padding: 0.65rem 0.95rem;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+  .bubble-row.user .bubble {
+    background: var(--bubble-user);
+    color: var(--bubble-user-text);
+    border-bottom-right-radius: 4px;
+  }
+  .bubble-row.assistant .bubble {
+    background: var(--bubble-assistant);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble-row.assistant .bubble.error {
+    color: #dc2626;
+  }
+  .bubble-row.assistant .bubble.loading {
+    color: var(--text-muted);
+    font-style: italic;
+    animation: pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .bubble code {
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.88em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .bubble pre {
+    background: var(--code-bg);
+    padding: 0.75em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.4em 0;
+    white-space: pre;
+  }
+  .bubble pre code { background: none; padding: 0; }
+  .bubble h4, .bubble h5, .bubble h6 {
+    margin: 0.6em 0 0.3em;
+    font-size: 1em;
+    line-height: 1.3;
+    font-weight: 700;
+  }
+  .bubble h4:first-child, .bubble h5:first-child, .bubble h6:first-child { margin-top: 0; }
+
+  .composer {
+    flex: none;
+    margin-top: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 0.9rem 1rem;
+  }
+
+  textarea#prompt {
+    width: 100%;
+    height: 3rem;
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+  }
+  textarea#prompt::placeholder { color: var(--text-muted); }
+
+  .composer-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.6rem;
+  }
+
+  .composer-footer .hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .composer-footer .actions { display: flex; gap: 0.6rem; }
+
+  .model-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .model-row .model-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .model-toggle { display: flex; gap: 0.3rem; }
+  .model-toggle button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.3rem 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 7px;
+  }
+  .model-toggle button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+
+  details.advanced {
+    margin-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+  }
+  details.advanced summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    list-style: none;
+  }
+  details.advanced summary::-webkit-details-marker { display: none; }
+  details.advanced summary::before {
+    content: '▸ ';
+  }
+  details.advanced[open] summary::before {
+    content: '▾ ';
+  }
+  .advanced-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin-top: 0.7rem;
+  }
+  .slider-row, .field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .slider-row label, .field-row label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    width: 6.5rem;
+    flex: none;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--primary);
+  }
+  .slider-row .range-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    width: 2rem;
+    text-align: right;
+  }
+  .field-row input[type="number"] {
+    width: 7rem;
+  }
+  .stop-row { align-items: flex-start; }
+  .stop-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    flex: 1;
+  }
+  input[type="number"], input[type="text"].stop-input {
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.35rem 0.5rem;
+  }
+  #advanced-reset {
+    align-self: flex-start;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.8rem;
+    font-size: 0.78rem;
+  }
+  #advanced-reset:hover { color: var(--text); border-color: var(--text-muted); }
+
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  button#send {
+    background: var(--primary);
+    color: #fff;
+  }
+  button#send:hover:not(:disabled) { background: var(--primary-hover); }
+
+  button#reset {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  button#reset:hover:not(:disabled) { color: var(--text); border-color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Token Counting</h1>
+    <p>Same agent, now showing what every turn actually costs in tokens.</p>
+  </header>
+
+  <div class="stats-bar" id="stats-bar"></div>
+  <div class="limit-warning" id="limit-warning" hidden></div>
+
+  <div class="chat" id="chat">
+    <div class="empty-state" id="empty-state">Loading conversation...</div>
+  </div>
+
+  <div class="composer">
+    <textarea id="prompt" placeholder="Ask the agent something..."></textarea>
+
+    <div class="model-row">
+      <span class="model-label">Model</span>
+      <div class="model-toggle" id="model-toggle">
+        <button type="button" class="active" data-model="deepseek-v4-flash">⚡ Flash</button>
+        <button type="button" data-model="deepseek-v4-pro">🧠 Pro</button>
+      </div>
+    </div>
+
+    <details class="advanced">
+      <summary>Advanced</summary>
+      <div class="advanced-body">
+        <div class="slider-row">
+          <label for="temperature">Temperature</label>
+          <input type="range" id="temperature" min="0" max="2" step="0.1" value="1">
+          <span class="range-label" id="temperature-value">1.0</span>
+        </div>
+        <div class="field-row">
+          <label for="max-tokens">Max tokens</label>
+          <input type="number" id="max-tokens" min="1" placeholder="no limit">
+        </div>
+        <div class="field-row stop-row">
+          <label>Stop sequences</label>
+          <div class="stop-inputs">
+            <input type="text" class="stop-input" placeholder="Stop 1">
+            <input type="text" class="stop-input" placeholder="Stop 2">
+            <input type="text" class="stop-input" placeholder="Stop 3">
+            <input type="text" class="stop-input" placeholder="Stop 4">
+          </div>
+        </div>
+        <button id="advanced-reset" type="button">Reset advanced settings</button>
+      </div>
+    </details>
+
+    <div class="composer-footer">
+      <span class="hint">Enter to send &middot; Shift+Enter for a new line</span>
+      <div class="actions">
+        <button id="reset" type="button">Reset</button>
+        <button id="send" type="button">Send</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const chatEl = document.getElementById('chat');
+let emptyState = document.getElementById('empty-state');
+const promptEl = document.getElementById('prompt');
+const sendButton = document.getElementById('send');
+const resetButton = document.getElementById('reset');
+const statsBar = document.getElementById('stats-bar');
+const limitWarning = document.getElementById('limit-warning');
+
+const modelToggle = document.getElementById('model-toggle');
+let selectedModel = 'deepseek-v4-flash';
+modelToggle.addEventListener('click', (e) => {
+  const button = e.target.closest('button[data-model]');
+  if (!button) return;
+  selectedModel = button.dataset.model;
+  modelToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === button));
+});
+
+const temperatureEl = document.getElementById('temperature');
+const temperatureValueEl = document.getElementById('temperature-value');
+const maxTokensEl = document.getElementById('max-tokens');
+const stopInputs = Array.from(document.querySelectorAll('.stop-input'));
+const advancedResetButton = document.getElementById('advanced-reset');
+
+temperatureEl.addEventListener('input', () => {
+  temperatureValueEl.textContent = parseFloat(temperatureEl.value).toFixed(1);
+});
+
+advancedResetButton.addEventListener('click', () => {
+  temperatureEl.value = '1';
+  temperatureValueEl.textContent = '1.0';
+  maxTokensEl.value = '';
+  stopInputs.forEach((input) => { input.value = ''; });
+});
+
+// Collects the current advanced settings into the shape /api/chat expects.
+// max_tokens/stop are only included when actually set - an empty control
+// means "let the API use its own default", not "send an empty value".
+function chatOptions() {
+  const options = { model: selectedModel, temperature: parseFloat(temperatureEl.value) };
+
+  const maxTokens = parseInt(maxTokensEl.value, 10);
+  if (!Number.isNaN(maxTokens)) {
+    options.max_tokens = maxTokens;
+  }
+
+  const stop = stopInputs.map((input) => input.value.trim()).filter((v) => v.length > 0);
+  if (stop.length > 0) {
+    options.stop = stop;
+  }
+
+  return options;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Minimal, dependency-free markdown covering what LLM replies typically use:
+// fenced/inline code, headings, and bold/italic. Line breaks are preserved
+// by the bubble's `white-space: pre-wrap`, so no paragraph/list handling is
+// needed here - but headings need an actual tag, since a literal "###" left
+// in the text just reads as clutter rather than a heading.
+function renderMarkdown(raw) {
+  const codeBlocks = [];
+  let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return ` ${codeBlocks.length - 1} `;
+  });
+
+  text = escapeHtml(text);
+  text = text.replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, content) => {
+    const level = Math.min(hashes.length, 3) + 3; // # -> h4, ## -> h5, ###+ -> h6
+    return `<h${level}>${content}</h${level}>`;
+  });
+  text = text.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+
+  return text.replace(/ (\d+) /g, (_, i) => codeBlocks[i]);
+}
+
+function clearEmptyState(message) {
+  if (emptyState) {
+    emptyState.remove();
+    emptyState = null;
+  }
+  if (message && chatEl.children.length === 0) {
+    emptyState = document.createElement('div');
+    emptyState.className = 'empty-state';
+    chatEl.appendChild(emptyState);
+    emptyState.textContent = message;
+  }
+}
+
+function addBubble(role, text, { loading = false, caption = null } = {}) {
+  clearEmptyState();
+  const row = document.createElement('div');
+  row.className = `bubble-row ${role}`;
+  const wrap = document.createElement('div');
+  wrap.className = 'bubble-wrap';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (loading) {
+    bubble.classList.add('loading');
+    bubble.textContent = text;
+  } else if (role === 'assistant') {
+    bubble.innerHTML = renderMarkdown(text);
+  } else {
+    bubble.textContent = text;
+  }
+  wrap.appendChild(bubble);
+  if (caption) {
+    const capEl = document.createElement('div');
+    capEl.className = 'token-caption';
+    capEl.textContent = caption;
+    wrap.appendChild(capEl);
+  }
+  row.appendChild(wrap);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bubble;
+}
+
+function tokenCaption(tokens) {
+  if (!tokens) return null;
+  if (tokens.actual) {
+    return `${tokens.actual.prompt_tokens} prompt / ${tokens.actual.completion_tokens} completion / ${tokens.actual.total_tokens} total tok (actual, from the API)`;
+  }
+  return `~${tokens.estimated_request_tokens} prompt / ~${tokens.estimated_response_tokens} completion tok (estimated)`;
+}
+
+function updateStats(tokens) {
+  if (!tokens) return;
+
+  const parts = [];
+  parts.push(
+    `History: ${tokens.history_tokens_after.toLocaleString()} tok (~${tokens.percent_of_limit.toFixed(1)}% of ${tokens.context_limit.toLocaleString()})`
+  );
+  if (tokens.actual) {
+    parts.push(`Last turn: ${tokens.actual.prompt_tokens} prompt / ${tokens.actual.completion_tokens} completion (actual)`);
+  } else if (tokens.estimated_request_tokens || tokens.estimated_response_tokens) {
+    parts.push(`Last turn: ~${tokens.estimated_request_tokens} prompt / ~${tokens.estimated_response_tokens} completion (estimated)`);
+  }
+  if (typeof tokens.estimated_cost_usd === 'number') {
+    parts.push(`Turn cost: $${tokens.estimated_cost_usd.toFixed(4)}`);
+  }
+  statsBar.textContent = parts.join(' · ');
+
+  if (tokens.percent_of_limit >= 100) {
+    limitWarning.hidden = false;
+    limitWarning.classList.add('over');
+    limitWarning.textContent = `History is at ${tokens.percent_of_limit.toFixed(0)}% of the configured reference limit (${tokens.context_limit.toLocaleString()} tokens) — the API may already be rejecting requests.`;
+  } else if (tokens.percent_of_limit >= 80) {
+    limitWarning.hidden = false;
+    limitWarning.classList.remove('over');
+    limitWarning.textContent = `History is at ${tokens.percent_of_limit.toFixed(0)}% of the configured reference limit (${tokens.context_limit.toLocaleString()} tokens).`;
+  } else {
+    limitWarning.hidden = true;
+  }
+}
+
+// Rehydrates the chat and the token stats bar from server-side state on
+// load, so a page reload after the server restarts shows the same
+// conversation and running totals - proof that the agent's memory, not
+// just the browser's, survived the restart.
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history');
+    const data = await res.json();
+    updateStats(data.tokens);
+    if (data.messages && data.messages.length > 0) {
+      data.messages.forEach((m) => addBubble(m.role, m.content));
+      return;
+    }
+  } catch (e) {
+    // Fall through to the empty-state message below.
+  }
+  clearEmptyState('Send a message to start the conversation.');
+}
+
+async function send() {
+  const message = promptEl.value.trim();
+  if (!message) return;
+
+  promptEl.value = '';
+  sendButton.disabled = true;
+
+  addBubble('user', message);
+  const replyBubble = addBubble('assistant', 'Thinking...', { loading: true });
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, ...chatOptions() }),
+    });
+    replyBubble.classList.remove('loading');
+    if (!res.ok) {
+      replyBubble.classList.add('error');
+      replyBubble.textContent = `Error: request failed with status ${res.status}`;
+    } else {
+      const data = await res.json();
+      replyBubble.innerHTML = renderMarkdown(data.reply);
+      const caption = tokenCaption(data.tokens);
+      if (caption) {
+        const capEl = document.createElement('div');
+        capEl.className = 'token-caption';
+        capEl.textContent = caption;
+        replyBubble.parentElement.appendChild(capEl);
+      }
+      updateStats(data.tokens);
+    }
+  } catch (e) {
+    replyBubble.classList.remove('loading');
+    replyBubble.classList.add('error');
+    replyBubble.textContent = `Error: ${e}`;
+  } finally {
+    sendButton.disabled = false;
+    promptEl.focus();
+  }
+}
+
+sendButton.addEventListener('click', send);
+promptEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+
+resetButton.addEventListener('click', async () => {
+  resetButton.disabled = true;
+  try {
+    const res = await fetch('/api/reset', { method: 'POST' });
+    const data = await res.json();
+    chatEl.innerHTML = '';
+    emptyState = null;
+    clearEmptyState('Conversation reset. Send a message to start again.');
+    updateStats(data.tokens);
+  } finally {
+    resetButton.disabled = false;
+    promptEl.focus();
+  }
+});
+
+loadHistory();
+promptEl.focus();
+</script>
+</body>
+</html>
