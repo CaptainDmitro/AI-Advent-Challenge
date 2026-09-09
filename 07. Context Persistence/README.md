@@ -19,7 +19,7 @@
 
 ## Demo
 
-_(to be added after recording the demo)_
+https://github.com/user-attachments/assets/c55ea414-b78f-40d7-8b93-8e8de062d0f7
 
 ## What this is
 
