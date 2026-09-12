@@ -14,6 +14,7 @@ Practice projects from an AI-focused course, one folder per lesson.
 | 06 | [First Agent](./06.%20First%20Agent) | A minimal chat agent that encapsulates the LLM request/response cycle behind an `Agent` entity |
 | 07 | [Context Persistence](./07.%20Context%20Persistence) | The same agent, now saving and restoring its conversation history to a JSON file so it survives a restart |
 | 08 | [Token Counting](./08.%20Token%20Counting) | The same agent, now reporting estimated and actual token usage per turn, a running history total, and cost |
+| 09 | [Context Compression](./09.%20Context%20Compression) | The same agent, now folding everything older than the last N messages into a running summary, and reporting how many tokens that saves per turn vs. sending full history |
 
 ## CI/CD
 
