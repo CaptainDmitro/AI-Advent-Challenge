@@ -22,7 +22,7 @@
 
 ## Demo
 
-_(to be added after recording the demo)_
+https://github.com/user-attachments/assets/70caa3ec-3f9d-4705-9b1c-c95574657993
 
 ## What this is
 
@@ -48,6 +48,8 @@ Toggle **Compaction** off and the agent behaves exactly like lesson 08 — the m
 - **Off** — the model has the literal text and answers however well it always did; nothing about *this* mechanism can degrade it.
 - **On** — the answer is only as good as the summary. If the fact survived condensation (the summarizer is instructed to preserve exactly this kind of thing), the answer is usually just as good. If it was dropped as "small talk" incorrectly, or the summary drifted after several fold cycles, the answer degrades — this is the real, honest trade-off of compaction, not a hidden one.
 
+In the demo above, a fact planted early in the conversation ("favorite number is 42, dog's name is Biscuit") was folded into the summary via **Compress now**, then correctly recalled with compaction on (362 prompt tokens) and, separately, with compaction off from the full raw history (592 prompt tokens) — the same right answer both ways, at meaningfully different cost.
+
 ### Comparing token cost before/after
 
 Every `/api/chat`, `/api/reset`, and `/api/history` response carries both numbers for that turn:
@@ -57,6 +59,8 @@ Every `/api/chat`, `/api/reset`, and `/api/history` response carries both number
 - `tokens_saved_this_turn` — the difference; zero whenever compaction is off, since the two are then identical by construction.
 
 The stats bar under the chat renders all three, plus `raw_history_tokens_after` (the complete, ever-growing transcript kept on disk) and `percent_of_limit` — computed against `sent_context_tokens`/the API's own `prompt_tokens`, not the raw history, since that's what actually determines whether the *next* call risks the provider rejecting it. This is the clearest way to see the mechanism work: with compaction off, `percent_of_limit` climbs every turn just like lesson 08; with it on, it stays roughly flat once the summary + last-N window stabilizes, however long the conversation runs.
+
+In the demo, savings climbed turn over turn as the conversation grew — 17%, then 29%, then 36% — while `raw_history_tokens_after` kept climbing regardless, confirming the full transcript is still being kept on disk even as less of it gets sent.
 
 ## Run
 
