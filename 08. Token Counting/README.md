@@ -26,7 +26,7 @@
 
 ## Demo
 
-_(to be added after recording the demo)_
+https://github.com/user-attachments/assets/85a790e6-1c87-4710-b585-91f56bc8d30a
 
 ## What this is
 
@@ -46,6 +46,8 @@ DeepSeek's tokenizer isn't public, so a BPE library like `tiktoken-rs` would jus
 ### Why overflow isn't artificially blocked
 
 `CONTEXT_LIMIT_TOKENS` is a configurable *reference* number for the progress indicator — not a claim about the real limit of the `deepseek-v4-flash`/`deepseek-v4-pro` aliases this course uses, which isn't published anywhere I can verify. Rather than guess wrong and simulate a fake failure, this agent lets the real backend be the source of truth: once history is large enough, the provider itself rejects the request, and that raw error surfaces through the same error path lesson 06 already built (`"API error (400): ..."`, shown directly in the chat bubble, with a 200 from *this* server so one failed call never breaks the rest of the UI). The warning banner just narrates the run-up to that moment.
+
+In the demo above, the real wall turned out to be exactly 1,048,576 tokens (2^20) — reached by repeatedly sending large filler messages until the provider itself rejected the request. The rejection also surfaced a genuine upstream quirk: the error text contains the literal word "undefined" in place of the limit and requested-token numbers, a templating bug on the provider's side that this agent passes through verbatim rather than papering over.
 
 ## Run
 
