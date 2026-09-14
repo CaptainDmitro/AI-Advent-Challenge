@@ -49,7 +49,7 @@
 
 ## Demo
 
-_(to be added after recording the demo)_
+https://github.com/user-attachments/assets/5b8fdc92-3f9e-4504-8423-b46ab516e304
 
 ## What this is
 
@@ -77,6 +77,8 @@ Run the same "gathering a spec" conversation (10-15 messages, gradually adding r
 2. **Sticky Facts** - the same early constraint, if the extractor judged it worth keeping, survives as a compact fact and answers correctly even past the window - at the cost of one extra LLM call per turn and a small, fixed facts block added to every request regardless of how long the conversation gets.
 3. **Branching** - nothing is ever dropped within a branch, so quality on a single branch is identical to sending the full history every time (same trade-off lesson 08 already had: it grows unbounded). The distinct win shows up when the scenario branches for real - e.g. requirements diverge into "web app" vs. "mobile app" partway through: checkpoint there, fork both, and each branch's answers stay consistent with *only* what was actually decided on that branch, with no cross-contamination and no re-typing.
 
+In the demo, running this scenario surfaced a real nuance beyond what's described above: under **Sliding Window**, a budget/timeline constraint mentioned once early on kept surviving well past the window - not because the mechanism failed, but because the model itself kept *restating* that constraint in its own replies, which are just as much a part of the window as anything the user said. A second, deliberately irrelevant detail ("my lucky number is 17, unrelated to the project") that the model never had reason to repeat was cleanly forgotten once it aged out - a truer demonstration of the mechanism's blind, judgment-free dropping. Under **Sticky Facts**, that same contrast was sharper and didn't depend on how many turns had passed: the extractor kept the budget/timeline as a fact and answered it correctly, but explicitly declined to remember the lucky number ("I don't know your lucky number, but the budget is $5,000...") - real judgment, not blind retention. Under **Branching**, a checkpoint taken right before the platform decision, forked into a Web branch (React on Vercel) and a Mobile branch (React Native for both app stores), answered an identical "what did we decide?" question correctly and independently on each side, with zero cross-talk in either direction.
+
 ### Comparing token cost
 
 Every `/api/chat`, `/api/reset`, and `/api/history` response carries, in `tokens`:
@@ -87,6 +89,8 @@ Every `/api/chat`, `/api/reset`, and `/api/history` response carries, in `tokens
 - `raw_history_tokens_after` - the active branch's complete, ever-growing transcript, regardless of strategy.
 - `facts_count` / `facts_tokens` - how much the sticky facts memory currently holds, and roughly how many tokens that would cost if spliced in.
 - `percent_of_limit` - `sent_context_tokens` (or the API's real `prompt_tokens`, when available) against `CONTEXT_LIMIT_TOKENS`, since that's what determines whether the *next* call risks rejection.
+
+In the demo, Sliding Window reached a **94% token saving** by the end of its run (221 tokens sent vs. a 3,424-token no-strategy baseline). Sticky Facts told a two-part story: for the first few turns, while the conversation was still shorter than the window, it actually cost *more* than doing nothing (316 sent vs. 224 baseline) - the fixed cost of the facts block and its extraction call isn't free - before flipping positive once the raw history outgrew the window (95 tokens saved, 20%, then 130 tokens, 24%, and climbing). Branching showed `sent == baseline` on every single turn, confirming it never saves tokens per turn by construction.
 
 ## Run
 
