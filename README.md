@@ -17,6 +17,7 @@ Practice projects from an AI-focused course, one folder per lesson.
 | 09 | [Context Compression](./09.%20Context%20Compression) | The same agent, now folding everything older than the last N messages into a running summary, and reporting how many tokens that saves per turn vs. sending full history |
 | 10 | [Context Management Strategies](./10.%20Context%20Management%20Strategies) | Three switchable, summary-free context strategies — sliding window, sticky key-value facts, and branching checkpoints — compared on the same spec-gathering scenario for quality, stability, and token cost |
 | 11 | [Agent Memory Model](./11.%20Agent%20Memory%20Model) | Three independently-stored memory layers — short-term dialogue, task-scoped working memory, and a durable long-term profile — each with its own file and its own narrowly-scoped LLM extraction prompt, so what gets remembered where is an explicit, testable choice |
+| 12 | [Personalization](./12.%20Personalization) | An explicit, user-authored personalization profile (style, tone, format, language, constraints) layered on top of lesson 11's memory model — written only by direct API calls, never inferred, and injected into every request so responses are verifiably different across profiles |
 
 ## CI/CD
 
