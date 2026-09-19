@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Task State Machine</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e8eb;
+    --muted: #8b93a3;
+    --accent: #5b8cff;
+    --profile: #c084fc;
+    --short: #5b8cff;
+    --working: #f2b84b;
+    --long: #4ade80;
+    --danger: #f27171;
+    --planning: #5b8cff;
+    --execution: #f2b84b;
+    --validation: #c084fc;
+    --done: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 1.2fr) minmax(320px, 1fr);
+    gap: 16px;
+    padding: 16px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel h2 {
+    margin: 0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.profile { background: var(--profile); }
+  .dot.short { background: var(--short); }
+  .dot.working { background: var(--working); }
+  .dot.long { background: var(--long); }
+
+  #chat-log {
+    height: 380px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    background: var(--panel-2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .bubble { max-width: 85%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+  .bubble.user { align-self: flex-end; background: var(--accent); color: white; }
+  .bubble.assistant { align-self: flex-start; background: #262b36; }
+  .bubble.error { align-self: flex-start; background: #3a2020; color: var(--danger); }
+
+  .chat-input { display: flex; gap: 8px; }
+  textarea, input[type=text] {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+  }
+  textarea { flex: 1; resize: none; height: 44px; }
+  button {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  button.secondary { background: #2a2f3a; }
+  button.danger { background: #4a2323; color: var(--danger); }
+  button.preset { background: #35284a; color: var(--profile); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .tokens-line { font-size: 11px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 10px; }
+  .tokens-line b { color: var(--text); }
+
+  .facts-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .facts-list li { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+  .facts-list li:last-child { border-bottom: none; }
+  .facts-list .key { color: var(--muted); }
+  .empty-note { color: var(--muted); font-size: 12px; font-style: italic; }
+
+  .task-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .task-row input[type=text] { flex: 1; min-width: 120px; }
+  .task-status { font-size: 13px; line-height: 1.6; }
+  .task-status .active { color: var(--text); font-weight: 600; }
+  .task-status .inactive { color: var(--muted); }
+  .stage-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #0f1115;
+  }
+  .stage-badge.planning { background: var(--planning); }
+  .stage-badge.execution { background: var(--execution); }
+  .stage-badge.validation { background: var(--validation); }
+  .stage-badge.done { background: var(--done); }
+  .paused-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: var(--danger);
+    color: #0f1115;
+  }
+
+  .remember-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; }
+  .remember-form select { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px; }
+  .layer-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .profile-form { display: flex; flex-direction: column; gap: 6px; }
+  .profile-form label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .profile-form textarea.constraints { height: 60px; }
+  .profile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .profile-preview { font-size: 12px; color: var(--muted); white-space: pre-wrap; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  pre.debug { font-size: 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; overflow-x: auto; max-height: 220px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Agent Task State Machine</h1>
+    <p>Task = stage (planning &rarr; execution &rarr; validation &rarr; done) &middot; step &middot; expected action &middot; pause is orthogonal to stage</p>
+  </div>
+  <button class="secondary" id="reset-btn" title="Clears the current conversation only">Reset conversation</button>
+</header>
+
+<div class="layout">
+  <!-- Chat column -->
+  <div class="panel">
+    <h2><span class="dot short"></span>Conversation</h2>
+    <div id="chat-log"></div>
+    <div class="chat-input">
+      <textarea id="chat-input" placeholder="Say something..."></textarea>
+      <button id="send-btn">Send</button>
+    </div>
+    <div class="tokens-line" id="tokens-line"></div>
+  </div>
+
+  <!-- Task state machine column -->
+  <div class="panel">
+    <h2><span class="dot working"></span>Task state machine</h2>
+    <div class="task-status" id="task-status">No active task.</div>
+
+    <div class="task-row" id="start-row">
+      <input type="text" id="task-name" placeholder="New task, e.g. Refactor the auth module" />
+    </div>
+    <div class="task-row" id="start-row-2">
+      <input type="text" id="task-step" placeholder="First step (optional)" />
+      <input type="text" id="task-expected" placeholder="Expected action (optional)" />
+      <button id="start-task-btn">Start task (planning)</button>
+    </div>
+
+    <div class="task-row" id="task-update-row" style="display:none;">
+      <input type="text" id="task-step-update" placeholder="Step" />
+      <input type="text" id="task-expected-update" placeholder="Expected action" />
+      <button id="update-step-btn" class="secondary">Update step (same stage)</button>
+    </div>
+
+    <div class="task-row" id="task-advance-row" style="display:none;"></div>
+
+    <div class="task-row" id="task-pause-row" style="display:none;">
+      <button id="pause-task-btn" class="secondary">Pause</button>
+      <button id="resume-task-btn" class="secondary">Resume</button>
+      <label style="font-size:12px;color:var(--muted);"><input type="checkbox" id="promote-checkbox" checked /> promote durable facts to long-term</label>
+      <button id="finish-task-btn" class="danger">Finish task</button>
+    </div>
+
+    <ul class="facts-list" id="working-facts"><li class="empty-note">No task active.</li></ul>
+
+    <details>
+      <summary>Task history</summary>
+      <ul class="facts-list" id="task-history"><li class="empty-note">No task started yet.</li></ul>
+    </details>
+  </div>
+
+  <!-- Personalization column -->
+  <div class="panel">
+    <h2><span class="dot profile"></span>Personalization profile</h2>
+    <div class="preset-row">
+      <button class="preset" id="preset-concise-btn">Preset: concise expert</button>
+      <button class="preset" id="preset-friendly-btn">Preset: friendly beginner</button>
+      <button class="danger" id="profile-reset-btn">Clear profile</button>
+    </div>
+    <div class="profile-form">
+      <label>Style</label>
+      <input type="text" id="profile-style" placeholder="e.g. concise, no fluff" />
+      <label>Tone</label>
+      <input type="text" id="profile-tone" placeholder="e.g. direct and professional" />
+      <label>Response format</label>
+      <input type="text" id="profile-format" placeholder="e.g. short bullet points" />
+      <label>Language</label>
+      <input type="text" id="profile-language" placeholder="e.g. English" />
+      <label>Constraints (one per line)</label>
+      <textarea class="constraints" id="profile-constraints" placeholder="Never use emojis&#10;Always show a code example"></textarea>
+      <div class="profile-actions">
+        <button id="profile-save-btn">Save profile</button>
+      </div>
+    </div>
+    <details>
+      <summary>What gets injected into every request right now</summary>
+      <div class="profile-preview" id="profile-preview">No profile set.</div>
+    </details>
+  </div>
+
+  <div class="panel">
+    <h2><span class="dot long"></span>Long-term memory (inferred)</h2>
+    <ul class="facts-list" id="long-term-facts"><li class="empty-note">Nothing learned yet.</li></ul>
+  </div>
+
+  <div class="panel">
+    <h2>Explicit memory control</h2>
+    <div class="remember-form">
+      <select id="remember-layer">
+        <option value="working">working</option>
+        <option value="long_term">long_term</option>
+      </select>
+      <input type="text" id="remember-key" placeholder="key" />
+      <input type="text" id="remember-value" placeholder="value" />
+      <button id="remember-btn">Remember</button>
+    </div>
+    <div class="layer-actions">
+      <button class="danger" data-forget="short_term">Forget short-term</button>
+      <button class="danger" data-forget="working">Forget working (and the task)</button>
+      <button class="danger" data-forget="long_term">Forget long-term</button>
+    </div>
+    <details>
+      <summary>Raw memory inspection (/api/memory)</summary>
+      <pre class="debug" id="debug-json"></pre>
+    </details>
+  </div>
+</div>
+
+<script>
+const chatLog = document.getElementById('chat-log');
+const chatInput = document.getElementById('chat-input');
+const sendBtn = document.getElementById('send-btn');
+const tokensLine = document.getElementById('tokens-line');
+const taskStatus = document.getElementById('task-status');
+const workingFactsEl = document.getElementById('working-facts');
+const longTermFactsEl = document.getElementById('long-term-facts');
+const debugJson = document.getElementById('debug-json');
+const profileStyle = document.getElementById('profile-style');
+const profileTone = document.getElementById('profile-tone');
+const profileFormat = document.getElementById('profile-format');
+const profileLanguage = document.getElementById('profile-language');
+const profileConstraints = document.getElementById('profile-constraints');
+const profilePreview = document.getElementById('profile-preview');
+
+const PRESETS = {
+  concise: {
+    style: 'Concise, no fluff, no filler sentences',
+    tone: 'Direct and professional',
+    format: 'Short bullet points; code blocks when relevant, no long prose',
+    language: 'English',
+    constraints: ['Never use emojis', 'Assume an advanced technical background - skip basic explanations'],
+  },
+  friendly: {
+    style: 'Detailed, step-by-step, walk through the reasoning',
+    tone: 'Warm and encouraging',
+    format: 'Plain prose with simple analogies, short paragraphs',
+    language: 'English',
+    constraints: ['Avoid jargon; if a technical term is unavoidable, explain it in one clause', 'Never assume prior expertise'],
+  },
+};
+
+const STAGE_LABEL = { planning: 'Planning', execution: 'Execution', validation: 'Validation', done: 'Done' };
+const ALLOWED_NEXT = { planning: ['execution'], execution: ['validation'], validation: ['execution', 'done'], done: [] };
+
+function fillProfileForm(profile) {
+  profileStyle.value = profile.style || '';
+  profileTone.value = profile.tone || '';
+  profileFormat.value = profile.format || '';
+  profileLanguage.value = profile.language || '';
+  profileConstraints.value = (profile.constraints || []).join('\n');
+}
+
+function profileFromForm() {
+  const constraints = profileConstraints.value
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+  return {
+    style: profileStyle.value.trim() || null,
+    tone: profileTone.value.trim() || null,
+    format: profileFormat.value.trim() || null,
+    language: profileLanguage.value.trim() || null,
+    constraints,
+  };
+}
+
+function renderProfilePreview(profile, tokens) {
+  const lines = [];
+  if (profile.style) lines.push(`Style: ${profile.style}`);
+  if (profile.tone) lines.push(`Tone: ${profile.tone}`);
+  if (profile.format) lines.push(`Response format: ${profile.format}`);
+  if (profile.language) lines.push(`Language: ${profile.language}`);
+  if (profile.constraints && profile.constraints.length) {
+    lines.push('Constraints:');
+    profile.constraints.forEach(c => lines.push(`- ${c}`));
+  }
+  if (lines.length === 0) {
+    profilePreview.textContent = 'No profile set - the agent behaves like a plain assistant.';
+    return;
+  }
+  profilePreview.textContent = lines.join('\n') + (tokens != null ? `\n\n(~${tokens} tokens sent with every request)` : '');
+}
+
+async function setProfile(profile) {
+  const res = await fetch('/api/profile', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile),
+  });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  await refreshMemory();
+}
+
+function addBubble(role, text) {
+  const div = document.createElement('div');
+  div.className = 'bubble ' + role;
+  div.textContent = text;
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function renderFacts(el, facts, emptyText) {
+  const keys = Object.keys(facts || {});
+  if (keys.length === 0) {
+    el.innerHTML = `<li class="empty-note">${emptyText}</li>`;
+    return;
+  }
+  el.innerHTML = keys.sort().map(k =>
+    `<li><span class="key">${k}:</span> ${facts[k]}</li>`
+  ).join('');
+}
+
+function renderTokens(memory) {
+  if (!memory) { tokensLine.textContent = ''; return; }
+  const parts = [
+    `<span><b>${memory.sent_context_tokens}</b> sent</span>`,
+    `<span>system ${memory.system_prompt_tokens}</span>`,
+    `<span>profile ${memory.profile_tokens}</span>`,
+    `<span>long-term ${memory.long_term_tokens}</span>`,
+    `<span>task ${memory.working_memory_tokens}</span>`,
+    `<span>short-term ${memory.short_term_tokens}</span>`,
+    `<span>${memory.percent_of_limit.toFixed(1)}% of ${memory.context_limit}</span>`,
+  ];
+  if (memory.actual) {
+    parts.push(`<span>actual prompt: ${memory.actual.prompt_tokens}</span>`);
+  }
+  if (memory.estimated_cost_usd != null) {
+    parts.push(`<span>~$${memory.estimated_cost_usd.toFixed(5)}</span>`);
+  }
+  tokensLine.innerHTML = parts.join('');
+}
+
+function renderTaskPanel(task) {
+  const startRow = document.getElementById('start-row');
+  const startRow2 = document.getElementById('start-row-2');
+  const updateRow = document.getElementById('task-update-row');
+  const advanceRow = document.getElementById('task-advance-row');
+  const pauseRow = document.getElementById('task-pause-row');
+  const pauseBtn = document.getElementById('pause-task-btn');
+  const resumeBtn = document.getElementById('resume-task-btn');
+  const finishBtn = document.getElementById('finish-task-btn');
+
+  if (!task) {
+    taskStatus.innerHTML = '<span class="inactive">No active task.</span>';
+    startRow.style.display = 'flex';
+    startRow2.style.display = 'flex';
+    updateRow.style.display = 'none';
+    advanceRow.style.display = 'none';
+    pauseRow.style.display = 'none';
+    return;
+  }
+
+  startRow.style.display = 'none';
+  startRow2.style.display = 'none';
+
+  const stageBadge = `<span class="stage-badge ${task.stage}">${STAGE_LABEL[task.stage] || task.stage}</span>`;
+  const pausedBadge = task.paused ? ' <span class="paused-badge">Paused</span>' : '';
+  taskStatus.innerHTML =
+    `<span class="active">${task.name}</span> ${stageBadge}${pausedBadge}` +
+    (task.step ? `<br/>Step: ${task.step}` : '') +
+    (task.expected_action ? `<br/>Expected: ${task.expected_action}` : '');
+
+  updateRow.style.display = task.paused ? 'none' : 'flex';
+  pauseRow.style.display = 'flex';
+  pauseBtn.style.display = task.paused ? 'none' : 'inline-block';
+  resumeBtn.style.display = task.paused ? 'inline-block' : 'none';
+  finishBtn.disabled = task.paused || task.stage !== 'done';
+
+  advanceRow.innerHTML = '';
+  const nextStages = task.paused ? [] : (ALLOWED_NEXT[task.stage] || []);
+  nextStages.forEach(target => {
+    const btn = document.createElement('button');
+    btn.className = 'secondary';
+    btn.textContent = (target === 'execution' && task.stage === 'validation')
+      ? 'Send back to execution (rework)'
+      : `Advance to ${STAGE_LABEL[target]}`;
+    btn.addEventListener('click', () => advanceTask(target));
+    advanceRow.appendChild(btn);
+  });
+  advanceRow.style.display = nextStages.length ? 'flex' : 'none';
+}
+
+function renderTaskHistory(history) {
+  const el = document.getElementById('task-history');
+  if (!history || !history.length) {
+    el.innerHTML = '<li class="empty-note">No task started yet.</li>';
+    return;
+  }
+  el.innerHTML = history.map(e => {
+    const detail = [
+      STAGE_LABEL[e.stage] || e.stage,
+      e.step ? `step: ${e.step}` : null,
+      e.expected_action ? `expecting: ${e.expected_action}` : null,
+    ].filter(Boolean).join(' - ');
+    return `<li><span class="key">${e.kind}:</span> ${detail}</li>`;
+  }).join('');
+}
+
+async function refreshMemory() {
+  const res = await fetch('/api/memory');
+  const data = await res.json();
+  fillProfileForm(data.profile || {});
+  renderProfilePreview(data.profile || {}, data.report ? data.report.profile_tokens : null);
+  renderFacts(workingFactsEl, data.working_facts, data.working_task ? 'No details captured yet for this task.' : 'No task active.');
+  renderFacts(longTermFactsEl, data.long_term_facts, 'Nothing learned yet.');
+  renderTaskPanel(data.working_task);
+  renderTaskHistory(data.working_task ? data.working_task.history : []);
+  renderTokens(data.report);
+  debugJson.textContent = JSON.stringify(data, null, 2);
+
+  chatLog.innerHTML = '';
+  (data.short_term || []).forEach(m => addBubble(m.role === 'user' ? 'user' : 'assistant', m.content));
+  return data;
+}
+
+async function sendMessage() {
+  const message = chatInput.value.trim();
+  if (!message) return;
+  chatInput.value = '';
+  sendBtn.disabled = true;
+  addBubble('user', message);
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    const data = await res.json();
+    addBubble(res.ok ? 'assistant' : 'error', data.reply);
+    renderTokens(data.memory);
+    await refreshMemory();
+  } catch (e) {
+    addBubble('error', 'Request failed: ' + e);
+  } finally {
+    sendBtn.disabled = false;
+    chatInput.focus();
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+document.getElementById('reset-btn').addEventListener('click', async () => {
+  await fetch('/api/reset', { method: 'POST' });
+  await refreshMemory();
+});
+
+document.getElementById('profile-save-btn').addEventListener('click', async () => {
+  await setProfile(profileFromForm());
+});
+
+document.getElementById('profile-reset-btn').addEventListener('click', async () => {
+  const res = await fetch('/api/profile', { method: 'DELETE' });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  await refreshMemory();
+});
+
+document.getElementById('preset-concise-btn').addEventListener('click', async () => {
+  await setProfile(PRESETS.concise);
+});
+
+document.getElementById('preset-friendly-btn').addEventListener('click', async () => {
+  await setProfile(PRESETS.friendly);
+});
+
+document.getElementById('start-task-btn').addEventListener('click', async () => {
+  const name = document.getElementById('task-name').value.trim();
+  if (!name) return;
+  const step = document.getElementById('task-step').value.trim();
+  const expected_action = document.getElementById('task-expected').value.trim();
+  const res = await fetch('/api/task/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, step, expected_action }),
+  });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  document.getElementById('task-name').value = '';
+  document.getElementById('task-step').value = '';
+  document.getElementById('task-expected').value = '';
+  await refreshMemory();
+});
+
+document.getElementById('update-step-btn').addEventListener('click', async () => {
+  const step = document.getElementById('task-step-update').value.trim();
+  const expected_action = document.getElementById('task-expected-update').value.trim();
+  const res = await fetch('/api/task/step', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ step, expected_action }),
+  });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  await refreshMemory();
+});
+
+async function advanceTask(stage) {
+  const step = document.getElementById('task-step-update').value.trim();
+  const expected_action = document.getElementById('task-expected-update').value.trim();
+  const res = await fetch('/api/task/advance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage, step, expected_action }),
+  });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  document.getElementById('task-step-update').value = '';
+  document.getElementById('task-expected-update').value = '';
+  await refreshMemory();
+}
+
+document.getElementById('pause-task-btn').addEventListener('click', async () => {
+  const res = await fetch('/api/task/pause', { method: 'POST' });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  await refreshMemory();
+});
+
+document.getElementById('resume-task-btn').addEventListener('click', async () => {
+  const res = await fetch('/api/task/resume', { method: 'POST' });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  await refreshMemory();
+});
+
+document.getElementById('finish-task-btn').addEventListener('click', async () => {
+  const promote = document.getElementById('promote-checkbox').checked;
+  const res = await fetch('/api/task/finish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ promote }),
+  });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  await refreshMemory();
+});
+
+document.getElementById('remember-btn').addEventListener('click', async () => {
+  const layer = document.getElementById('remember-layer').value;
+  const key = document.getElementById('remember-key').value.trim();
+  const value = document.getElementById('remember-value').value.trim();
+  if (!key || !value) return;
+  const res = await fetch('/api/memory/remember', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ layer, key, value }),
+  });
+  if (!res.ok) {
+    alert(await res.text());
+    return;
+  }
+  document.getElementById('remember-key').value = '';
+  document.getElementById('remember-value').value = '';
+  await refreshMemory();
+});
+
+document.querySelectorAll('[data-forget]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const layer = btn.getAttribute('data-forget');
+    await fetch('/api/memory/forget', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layer }),
+    });
+    await refreshMemory();
+  });
+});
+
+refreshMemory();
+</script>
+</body>
+</html>

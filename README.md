@@ -18,6 +18,7 @@ Practice projects from an AI-focused course, one folder per lesson.
 | 10 | [Context Management Strategies](./10.%20Context%20Management%20Strategies) | Three switchable, summary-free context strategies — sliding window, sticky key-value facts, and branching checkpoints — compared on the same spec-gathering scenario for quality, stability, and token cost |
 | 11 | [Agent Memory Model](./11.%20Agent%20Memory%20Model) | Three independently-stored memory layers — short-term dialogue, task-scoped working memory, and a durable long-term profile — each with its own file and its own narrowly-scoped LLM extraction prompt, so what gets remembered where is an explicit, testable choice |
 | 12 | [Personalization](./12.%20Personalization) | An explicit, user-authored personalization profile (style, tone, format, language, constraints) layered on top of lesson 11's memory model — written only by direct API calls, never inferred, and injected into every request so responses are verifiably different across profiles |
+| 13 | [Task State Machine](./13.%20Task%20State%20Machine) | A task's state formalized as an explicit finite state machine — stage (planning → execution → validation → done), step, and expected action — with validated transitions, pause/resume orthogonal to stage, and the full state injected into every request so the agent never needs the task re-explained after a pause |
 
 ## CI/CD
 
