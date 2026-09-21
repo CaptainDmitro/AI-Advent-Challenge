@@ -25,7 +25,7 @@
 
 ## Demo
 
-_(added by the human after recording)_
+https://github.com/user-attachments/assets/89f1a781-ee5e-4d8d-a1c3-ed9a2e858c4e
 
 ## What this is
 
