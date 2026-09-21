@@ -34,7 +34,7 @@
 
 ## Demo
 
-_(added by the human after recording)_
+https://github.com/user-attachments/assets/c4edd7d6-6f9d-4980-94f7-2d8392557d76
 
 ## What this is
 
