@@ -33,7 +33,7 @@
 
 ## Demo
 
-_(added by the human after recording)_
+https://github.com/user-attachments/assets/941b86c0-4b04-4f46-af8c-d3e801529c57
 
 ## What this is
 
