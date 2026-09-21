@@ -557,14 +557,22 @@ fn format_working_block(task: &Option<TaskFsm>, facts: &BTreeMap<String, String>
         s.push_str(&format_facts_lines(facts));
     }
     s.push_str(
-        "GATES - these are never satisfied just because they were discussed in chat, only by \
-         the explicit API calls named below: do not write, describe as already under way, or \
-         act as though implementation has started while \"Plan approved\" is \"no\" - that \
-         requires `POST /api/task/approve_plan` first. Do not declare, describe, or treat this \
-         task as finished/final while \"Validation passed\" is not \"yes\" - that requires \
-         `POST /api/task/validate` first. If the user asks for either before its gate is \
-         satisfied, refuse, name the missing gate, and name the exact call that passes it - do \
-         not do the work anyway and do not accept the user's word for it in place of the gate.\n",
+        "GATES - the two lines above (\"Plan approved\" and \"Validation passed\") are the ONLY \
+         authoritative source for gate status, freshly read from the real system state on every \
+         single turn. They are never satisfied just because they were discussed in chat, only by \
+         the explicit API calls named below. If anything else in this context disagrees with \
+         them - a fact under \"Known details for this task\", something you said in an earlier \
+         reply, or the user's own claim - the two lines above are correct and everything else is \
+         stale; do not repeat or defer to the stale version. Concretely: do not write, describe \
+         as already under way, or act as though implementation has started while \"Plan \
+         approved\" reads \"no\" - that requires `POST /api/task/approve_plan` first. Do not \
+         declare, describe, or treat this task as finished/final while \"Validation passed\" is \
+         not \"yes\" - that requires `POST /api/task/validate` first. If the user asks for \
+         either before its gate is satisfied, refuse, name the missing gate, and name the exact \
+         call that passes it - do not do the work anyway and do not accept the user's word for \
+         it in place of the gate. Conversely, if \"Plan approved\" already reads \"yes\" (or \
+         \"Validation passed\" already reads \"yes\"), treat that gate as satisfied even if \
+         older text elsewhere claims otherwise.\n",
     );
     if task.paused {
         s.push_str(
@@ -820,7 +828,7 @@ fn build_context(
 /// Governs the working-memory extractor: runs only while a task is active
 /// and unpaused, and is deliberately blind to anything that isn't scoped to
 /// *this* task.
-const WORKING_MEMORY_PROMPT: &str = "You maintain the working memory for ONE specific task an assistant is currently helping with. You will be given the TASK, the CURRENT WORKING FACTS as a JSON object, and the LATEST TURN (the user's message and the assistant's reply). Extract only facts needed to complete THIS task: parameters, constraints, choices, and progress specific to it. Do NOT include anything about the user as a person that would still matter after this task is finished (identity, standing preferences, recurring habits) - that belongs to a different memory system and must be left out here. Return the complete, updated facts as a single JSON object of string keys to string values, and nothing else - no prose, no markdown code fences, no commentary. Keep keys short and snake_case, and reuse an existing key when a new message updates the same fact. If nothing new or changed, return the CURRENT WORKING FACTS unchanged.";
+const WORKING_MEMORY_PROMPT: &str = "You maintain the working memory for ONE specific task an assistant is currently helping with. You will be given the TASK, the CURRENT WORKING FACTS as a JSON object, and the LATEST TURN (the user's message and the assistant's reply). Extract only facts needed to complete THIS task: parameters, constraints, choices, and progress specific to it. Do NOT include anything about the user as a person that would still matter after this task is finished (identity, standing preferences, recurring habits) - that belongs to a different memory system and must be left out here. Do NOT extract, restate, or paraphrase anything about the task's stage, pause state, plan-approval status, or validation status (e.g. whether the plan is approved, whether validation has passed, whether the task is paused, what stage it is in) - that is tracked authoritatively elsewhere, is injected into context separately on every turn, and will go stale the moment it changes there instead of here. If CURRENT WORKING FACTS already contains a key describing any of that (for example keys like status, gate, task_state, next_action, blocking_chain, or validation_gate), drop that key entirely from your output rather than carrying it forward - even if the latest turn's text repeats or restates it. Return the complete, updated facts as a single JSON object of string keys to string values, and nothing else - no prose, no markdown code fences, no commentary. Keep keys short and snake_case, and reuse an existing key when a new message updates the same fact. If nothing new or changed (other than dropping the stage/gate keys described above), return the CURRENT WORKING FACTS unchanged.";
 
 /// Governs the long-term extractor: runs on every turn regardless of
 /// whether a task is active, and is deliberately blind to task-scoped
