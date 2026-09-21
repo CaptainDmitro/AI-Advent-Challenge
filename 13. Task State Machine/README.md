@@ -29,7 +29,7 @@
 
 ## Demo
 
-_(added by the human after recording)_
+https://github.com/user-attachments/assets/bfcb0f85-a3b6-4060-8d89-2696e8552d2c
 
 ## What this is
 
