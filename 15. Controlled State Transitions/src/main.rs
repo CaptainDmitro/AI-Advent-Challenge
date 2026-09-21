@@ -1054,6 +1054,26 @@ impl Agent {
         save_json(&self.short_term_path, &*self.short_term.lock().unwrap());
     }
 
+    /// Drops a short, deterministic note into the chat transcript for an
+    /// FSM-mutating action taken through the UI/API directly (approve,
+    /// validate, advance, pause, resume) rather than through `respond`.
+    /// Those endpoints change real state but never otherwise touch
+    /// short-term memory, so without this the last visible chat bubble can
+    /// sit stale - e.g. a refusal from before the user clicked "Approve
+    /// plan" - even though the state it complained about has since moved
+    /// on. Rendered as an "assistant" message (prefixed so it reads as a
+    /// system note, not a model reply) so it appears inline in the same
+    /// transcript the user is already reading.
+    fn note_state_change(&self, text: String) {
+        let mut st = self.short_term.lock().unwrap();
+        st.messages.push(Message {
+            role: "assistant".to_string(),
+            content: format!("[state] {text}"),
+        });
+        drop(st);
+        self.persist_short_term();
+    }
+
     fn persist_working(&self) {
         save_json(&self.working_memory_path, &*self.working.lock().unwrap());
     }
@@ -1551,6 +1571,7 @@ impl Agent {
         // last validation run found - the code under review is about to
         // change, so a stale "validated: true" can't carry over silently.
         let leaving_validation_for_rework = task.stage == TaskStage::Validation && target == TaskStage::Execution;
+        let from_label = task.stage.label();
         task.stage = target;
         task.step = step;
         task.expected_action = expected_action;
@@ -1561,6 +1582,15 @@ impl Agent {
         task.record(TaskEventKind::StageAdvanced);
         drop(w);
         self.persist_working();
+        self.note_state_change(format!(
+            "Stage advanced: {from_label} -> {}{}.",
+            target.label(),
+            if leaving_validation_for_rework {
+                " (rework - prior validation cleared)"
+            } else {
+                ""
+            }
+        ));
         Ok(())
     }
 
@@ -1589,6 +1619,11 @@ impl Agent {
         task.record(TaskEventKind::PlanApproved);
         drop(w);
         self.persist_working();
+        self.note_state_change(
+            "Plan approved (POST /api/task/approve_plan). Execution may begin once the stage is \
+             advanced."
+                .to_string(),
+        );
         Ok(())
     }
 
@@ -1609,11 +1644,21 @@ impl Agent {
                 task.stage.label()
             ));
         }
+        let notes_suffix = if notes.is_empty() { String::new() } else { format!(" ({notes})") };
         task.validated = passed;
         task.validation_notes = notes;
         task.record(TaskEventKind::Validated);
         drop(w);
         self.persist_working();
+        self.note_state_change(format!(
+            "Validation recorded: {}{notes_suffix}.{}",
+            if passed { "passed" } else { "failed" },
+            if passed {
+                String::new()
+            } else {
+                " Advance back to execution for rework.".to_string()
+            }
+        ));
         Ok(())
     }
 
@@ -1648,6 +1693,7 @@ impl Agent {
         task.record(TaskEventKind::Paused);
         drop(w);
         self.persist_working();
+        self.note_state_change("Task paused. State-changing actions are frozen until resumed.".to_string());
         Ok(())
     }
 
@@ -1664,6 +1710,7 @@ impl Agent {
         task.record(TaskEventKind::Resumed);
         drop(w);
         self.persist_working();
+        self.note_state_change("Task resumed from exactly where it left off.".to_string());
         Ok(())
     }
 
@@ -3014,6 +3061,99 @@ mod tests {
                 TaskEventKind::Resumed,
             ]
         );
+    }
+
+    // -------------------------------------------------------------
+    // Out-of-band state changes (approve/validate/advance/pause/resume
+    // called directly, not through `respond`) leave a note in the chat
+    // transcript - otherwise the last visible bubble can be a refusal from
+    // before the gate was satisfied, even though the state it complained
+    // about has since moved on.
+    // -------------------------------------------------------------
+
+    #[test]
+    fn approve_plan_notes_the_chat_transcript() {
+        let agent = test_agent();
+        agent.start_task("Ship it".to_string(), "".to_string(), "".to_string()).unwrap();
+        agent.approve_plan().unwrap();
+        let messages = agent.short_term_messages();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].role, "assistant");
+        assert!(messages[0].content.contains("approve_plan"));
+    }
+
+    #[test]
+    fn advance_task_notes_the_chat_transcript() {
+        let agent = test_agent();
+        agent.start_task("Ship it".to_string(), "".to_string(), "".to_string()).unwrap();
+        agent.approve_plan().unwrap();
+        agent.advance_task(TaskStage::Execution, "".to_string(), "".to_string()).unwrap();
+        let messages = agent.short_term_messages();
+        let last = messages.last().unwrap();
+        assert_eq!(last.role, "assistant");
+        assert!(last.content.contains("planning"));
+        assert!(last.content.contains("execution"));
+    }
+
+    #[test]
+    fn advance_task_rework_note_mentions_cleared_validation() {
+        let agent = test_agent();
+        agent.start_task("Ship it".to_string(), "".to_string(), "".to_string()).unwrap();
+        agent.approve_plan().unwrap();
+        agent.advance_task(TaskStage::Execution, "".to_string(), "".to_string()).unwrap();
+        agent.advance_task(TaskStage::Validation, "".to_string(), "".to_string()).unwrap();
+        agent.record_validation(false, "one test failing".to_string()).unwrap();
+        agent.advance_task(TaskStage::Execution, "".to_string(), "".to_string()).unwrap();
+        let last = agent.short_term_messages().into_iter().last().unwrap();
+        assert!(last.content.contains("rework"));
+    }
+
+    #[test]
+    fn record_validation_notes_the_chat_transcript() {
+        let agent = test_agent();
+        agent.start_task("Ship it".to_string(), "".to_string(), "".to_string()).unwrap();
+        agent.approve_plan().unwrap();
+        agent.advance_task(TaskStage::Execution, "".to_string(), "".to_string()).unwrap();
+        agent.advance_task(TaskStage::Validation, "".to_string(), "".to_string()).unwrap();
+        agent.record_validation(true, "all green".to_string()).unwrap();
+        let last = agent.short_term_messages().into_iter().last().unwrap();
+        assert!(last.content.contains("passed"));
+        assert!(last.content.contains("all green"));
+    }
+
+    #[test]
+    fn pause_and_resume_note_the_chat_transcript() {
+        let agent = test_agent();
+        agent.start_task("Ship it".to_string(), "".to_string(), "".to_string()).unwrap();
+        agent.pause_task().unwrap();
+        let after_pause = agent.short_term_messages().into_iter().last().unwrap();
+        assert!(after_pause.content.contains("paused"));
+
+        agent.resume_task().unwrap();
+        let after_resume = agent.short_term_messages().into_iter().last().unwrap();
+        assert!(after_resume.content.contains("resumed"));
+    }
+
+    #[tokio::test]
+    async fn a_refusal_reply_is_followed_by_a_note_once_the_gate_is_satisfied_out_of_band() {
+        // Regression test for the exact confusion this feature fixes: a
+        // chat refusal sitting in the transcript, followed by the gate
+        // being satisfied through the UI/API rather than through chat.
+        // The note (not another LLM call) is what makes the transcript
+        // stop looking stale.
+        let agent = test_agent_no_invariants();
+        agent.start_task("Ship it".to_string(), "".to_string(), "".to_string()).unwrap();
+        let refusal = agent
+            .respond("Write the code", ChatOptions { temperature: None, max_tokens: None })
+            .await;
+        assert!(refusal.reply.contains("approve_plan"));
+
+        agent.approve_plan().unwrap();
+
+        let messages = agent.short_term_messages();
+        let last = messages.last().unwrap();
+        assert_eq!(last.role, "assistant");
+        assert!(last.content.contains("Plan approved"));
     }
 
     // -------------------------------------------------------------
