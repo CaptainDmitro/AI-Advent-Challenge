@@ -1,0 +1,24 @@
+[package]
+name = "mcp-orchestration"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "query", "rustls"] }
+# Same rmcp setup as lessons 17-19: the server half serves three separate MCP
+# servers (crates, github, notes) on their own endpoints, and the client half
+# is how the orchestrator connects to every registered server over Streamable
+# HTTP. rustls keeps the musl build static.
+rmcp = { version = "3.4.1", default-features = false, features = [
+    "server",
+    "macros",
+    "transport-streamable-http-server",
+    "client",
+    "transport-streamable-http-client-reqwest",
+    "reqwest",
+] }
+schemars = "1.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time"] }
