@@ -1,0 +1,24 @@
+[package]
+name = "mcp-connection"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+# Official Rust MCP SDK. `client` + the reqwest-backed Streamable HTTP
+# transport; the `reqwest` feature pins reqwest to rustls so the binary still
+# links statically for the musl deploy target (no OpenSSL).
+rmcp = { version = "3.4.1", default-features = false, features = [
+    "client",
+    "transport-streamable-http-client-reqwest",
+    "reqwest",
+] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time"] }
+
+[dev-dependencies]
+# Tests spin up a tiny in-process MCP server over `tokio::io::duplex`, so they
+# also need the server half of the SDK.
+rmcp = { version = "3.4.1", default-features = false, features = ["client", "server"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "io-util"] }

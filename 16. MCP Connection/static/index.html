@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Connection</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --err: #dc2626;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --err: #f87171;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 2rem;
+  }
+
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.98rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .card h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0 0 0.8rem;
+  }
+
+  .field-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .field-row label { font-size: 0.82rem; color: var(--text-muted); width: 6rem; flex: none; }
+  .field-row input {
+    flex: 1;
+    min-width: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.5rem 0.6rem;
+  }
+  .actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.4rem; }
+
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  #connect { background: var(--primary); color: #fff; }
+  #connect:hover:not(:disabled) { background: var(--primary-hover); }
+
+  .status { display: flex; align-items: center; gap: 0.55rem; font-weight: 600; }
+  .dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .status.ok .dot { background: var(--ok); }
+  .status.err .dot { background: var(--err); }
+  .status.pending .dot { animation: pulse 1.1s ease-in-out infinite; }
+  .status.err .msg { color: var(--err); }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  dl.meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.35rem 1rem;
+    margin: 0.9rem 0 0;
+    font-size: 0.88rem;
+  }
+  dl.meta dt { color: var(--text-muted); }
+  dl.meta dd { margin: 0; overflow-wrap: anywhere; }
+
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.84em;
+  }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+  pre {
+    background: var(--code-bg);
+    padding: 0.7em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.5em 0 0;
+  }
+
+  .tool {
+    border-top: 1px solid var(--border);
+    padding: 0.8rem 0;
+  }
+  .tool:first-of-type { border-top: none; padding-top: 0; }
+  .tool-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .tool-name { font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .tool-params { color: var(--text-muted); font-size: 0.8rem; }
+  .tool-desc { margin: 0.35rem 0 0; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; }
+  details summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+  .empty { color: var(--text-muted); font-size: 0.92rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>MCP Connection</h1>
+    <p>Connect to an MCP server and list the tools it exposes.</p>
+  </header>
+
+  <section class="card">
+    <h2>Server</h2>
+    <div class="field-row">
+      <label for="url">URL</label>
+      <input id="url" type="text" spellcheck="false" placeholder="https://mcp.deepwiki.com/mcp">
+    </div>
+    <div class="field-row">
+      <label for="token">Bearer token</label>
+      <input id="token" type="password" placeholder="optional" autocomplete="off">
+    </div>
+    <div class="actions">
+      <button id="connect" type="button">Connect &amp; list tools</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Connection</h2>
+    <div class="status" id="status"><span class="dot"></span><span class="msg">Not connected yet.</span></div>
+    <dl class="meta hidden" id="meta"></dl>
+  </section>
+
+  <section class="card">
+    <h2 id="tools-title">Tools</h2>
+    <div id="tools"><div class="empty">Connect to a server to see its tools.</div></div>
+  </section>
+
+<script>
+const urlEl = document.getElementById('url');
+const tokenEl = document.getElementById('token');
+const connectButton = document.getElementById('connect');
+const statusEl = document.getElementById('status');
+const metaEl = document.getElementById('meta');
+const toolsEl = document.getElementById('tools');
+const toolsTitleEl = document.getElementById('tools-title');
+
+function el(tag, attrs = {}, text) {
+  const node = document.createElement(tag);
+  Object.assign(node, attrs);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function setStatus(kind, message) {
+  statusEl.className = `status ${kind}`;
+  statusEl.querySelector('.msg').textContent = message;
+}
+
+function renderMeta(url, result) {
+  const s = result.server;
+  const rows = [
+    ['Endpoint', url],
+    ['Server', [s.title || s.name, s.version && `v${s.version}`].filter(Boolean).join(' ') || '(not reported)'],
+    ['Protocol', s.protocol_version],
+    ['Capabilities', Object.keys(s.capabilities || {}).join(', ') || '(none)'],
+    ['Handshake', `${result.handshake_ms} ms`],
+    ['tools/list', `${result.list_tools_ms} ms`],
+  ];
+  if (s.instructions) rows.push(['Instructions', s.instructions]);
+  metaEl.replaceChildren(...rows.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)]));
+  metaEl.classList.remove('hidden');
+}
+
+function renderTools(tools) {
+  toolsTitleEl.textContent = `Tools (${tools.length})`;
+  if (tools.length === 0) {
+    toolsEl.replaceChildren(el('div', { className: 'empty' }, 'The server exposes no tools.'));
+    return;
+  }
+  toolsEl.replaceChildren(...tools.map((tool) => {
+    const props = Object.keys(tool.input_schema?.properties || {});
+    const required = new Set(tool.input_schema?.required || []);
+    const params = props.map((p) => required.has(p) ? p : `${p}?`).join(', ');
+
+    const head = el('div', { className: 'tool-head' });
+    head.append(el('span', { className: 'tool-name' }, tool.name));
+    if (tool.title) head.append(el('span', { className: 'tool-params' }, tool.title));
+    head.append(el('span', { className: 'tool-params' }, `(${params})`));
+
+    const details = el('details');
+    details.append(el('summary', {}, 'Input schema'), el('pre', {}, JSON.stringify(tool.input_schema, null, 2)));
+
+    const block = el('div', { className: 'tool' });
+    block.append(head, el('p', { className: 'tool-desc' }, tool.description || '(no description)'), details);
+    return block;
+  }));
+}
+
+async function connect() {
+  connectButton.disabled = true;
+  metaEl.classList.add('hidden');
+  toolsTitleEl.textContent = 'Tools';
+  toolsEl.replaceChildren(el('div', { className: 'empty' }, 'Waiting for tools/list...'));
+  setStatus('pending', 'Connecting (initialize → notifications/initialized)...');
+
+  try {
+    const res = await fetch('/api/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: urlEl.value, token: tokenEl.value }),
+    });
+    if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+    const data = await res.json();
+    if (data.error) {
+      setStatus('err', data.error);
+      toolsEl.replaceChildren(el('div', { className: 'empty' }, 'No tools - the connection failed.'));
+      return;
+    }
+    setStatus('ok', 'Connected');
+    renderMeta(data.url, data.result);
+    renderTools(data.result.tools);
+  } catch (e) {
+    setStatus('err', `Error: ${e.message || e}`);
+    toolsEl.replaceChildren();
+  } finally {
+    connectButton.disabled = false;
+  }
+}
+
+connectButton.addEventListener('click', connect);
+[urlEl, tokenEl].forEach((input) => input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') connect();
+}));
+
+fetch('/api/config')
+  .then((r) => r.json())
+  .then((cfg) => { if (!urlEl.value) urlEl.value = cfg.default_url; })
+  .catch(() => {});
+</script>
+</body>
+</html>
