@@ -1,0 +1,30 @@
+[package]
+name = "first-mcp-tool"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "query", "rustls"] }
+# Official Rust MCP SDK, now with both halves:
+# - server + macros + the Streamable HTTP server transport, to register the
+#   `list_recent_commits` tool and serve it at `/mcp` on the same axum app;
+# - client + the reqwest-backed Streamable HTTP client transport, so the agent
+#   talks to that endpoint over real MCP. The `reqwest` feature pins reqwest to
+#   rustls so the binary still links statically for the musl deploy target.
+rmcp = { version = "3.4.1", default-features = false, features = [
+    "server",
+    "macros",
+    "transport-streamable-http-server",
+    "client",
+    "transport-streamable-http-client-reqwest",
+    "reqwest",
+] }
+# `#[derive(JsonSchema)]` on the tool's input struct; the same major version rmcp uses.
+schemars = "1.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "io-util"] }
