@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Tool Composition</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --chip-bg: #eef0ff;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --err: #dc2626;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --chip-bg: #262a40;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --err: #f87171;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2rem;
+  }
+
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.98rem; }
+
+  .flow { display: flex; justify-content: center; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.9rem; }
+  .flow .node { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.8rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85rem; }
+  .flow .arrow { color: var(--text-muted); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .card h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0 0 0.8rem;
+  }
+
+  .tabs { display: flex; gap: 0.4rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+  .tab { background: var(--code-bg); color: var(--text); border: 1px solid var(--border); }
+  .tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .tab-help { color: var(--text-muted); font-size: 0.86rem; margin: 0 0 0.8rem; line-height: 1.45; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.6rem; }
+  label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; color: var(--text-muted); }
+  label.wide { grid-column: 1 / -1; }
+  input, select, textarea {
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.5rem 0.65rem;
+    width: 100%;
+  }
+  textarea { min-height: 4.2rem; resize: vertical; }
+  .examples { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+  .chip {
+    background: var(--chip-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.8rem; }
+  .hint { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; flex: none; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .link { background: none; color: var(--primary); padding: 0; font-size: 0.88rem; font-weight: 600; }
+
+  .status { display: flex; align-items: center; gap: 0.55rem; font-weight: 600; margin-bottom: 0.6rem; }
+  .dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .status.ok .dot { background: var(--ok); }
+  .status.err .dot { background: var(--err); }
+  .status.pending .dot { animation: pulse 1.1s ease-in-out infinite; }
+  .status.err .msg { color: var(--err); }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.84em;
+  }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+  pre {
+    background: var(--code-bg);
+    padding: 0.7em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.5em 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 22rem;
+  }
+
+  dl.meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.35rem 1rem;
+    margin: 0 0 0.6rem;
+    font-size: 0.88rem;
+  }
+  dl.meta dt { color: var(--text-muted); }
+  dl.meta dd { margin: 0; overflow-wrap: anywhere; }
+
+  .step { border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem 0.9rem; }
+  .step.err { border-color: var(--err); }
+  .handoff { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 0.35rem 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+  .step-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .step-name { font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .muted { color: var(--text-muted); font-size: 0.8rem; }
+  .label { color: var(--text-muted); font-size: 0.78rem; margin-top: 0.55rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .badge { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 999px; color: #fff; }
+  .badge.ok { background: var(--ok); }
+  .badge.err { background: var(--err); }
+  .artifact { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; background: var(--chip-bg); border-radius: 6px; padding: 0.1rem 0.4rem; }
+  .tool-desc { margin: 0.35rem 0 0; font-size: 0.9rem; line-height: 1.5; }
+  details summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+  .check { display: flex; gap: 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
+  .check:first-child { border-top: none; padding-top: 0; }
+  .check .icon { font-weight: 800; flex: none; width: 1.1rem; text-align: center; }
+  .check.ok .icon { color: var(--ok); }
+  .check.fail .icon { color: var(--err); }
+  .check .name { font-weight: 600; font-size: 0.92rem; }
+  .check .detail { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.15rem; overflow-wrap: anywhere; }
+
+  #answer { font-size: 1rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .files { list-style: none; margin: 0; padding: 0; }
+  .files li { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.35rem 0; border-top: 1px solid var(--border); font-size: 0.88rem; }
+  .files li:first-child { border-top: none; }
+  .empty { color: var(--text-muted); font-size: 0.92rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>MCP Tool Composition</h1>
+    <p>Three MCP tools chained into one automatic pipeline.</p>
+    <div class="flow">
+      <span class="node">search</span><span class="arrow">→</span>
+      <span class="node">summarize</span><span class="arrow">→</span>
+      <span class="node">save_to_file</span>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="tabs">
+      <button type="button" class="tab active" data-mode="pipeline">A · Fixed pipeline</button>
+      <button type="button" class="tab" data-mode="agent">B · Agent chains the tools</button>
+    </div>
+
+    <div id="pane-pipeline">
+      <p class="tab-help">Code runs the three <code>tools/call</code>s in order. Each step's arguments are built from the previous step's <code>structuredContent</code> (its <code>artifact_id</code>). No LLM decides anything here.</p>
+      <div class="grid">
+        <label class="wide">Search query (GitHub syntax)
+          <input id="query" value="mcp server language:rust" spellcheck="false">
+        </label>
+        <label>How many repos
+          <select id="limit">
+            <option>3</option><option selected>5</option><option>8</option><option>10</option>
+          </select>
+        </label>
+        <label>Summary language
+          <select id="language"><option>English</option><option>Russian</option></select>
+        </label>
+        <label>File name
+          <input id="filename" placeholder="summary-N.md" spellcheck="false">
+        </label>
+        <label class="wide">Focus (optional)
+          <input id="focus" placeholder="e.g. maturity and how actively each is maintained">
+        </label>
+      </div>
+      <div class="actions">
+        <span class="hint" id="hint"></span>
+        <button id="run-pipeline" type="button" class="primary">Run pipeline</button>
+      </div>
+    </div>
+
+    <div id="pane-agent" class="hidden">
+      <p class="tab-help">The LLM sees the three tools over MCP and chains them itself, passing each <code>artifact_id</code> on. The same handoff checks run afterwards.</p>
+      <textarea id="question" spellcheck="false" placeholder="Find the most popular Rust MCP SDKs, summarize them, and save the report to rust-mcp.md"></textarea>
+      <div class="examples" id="examples"></div>
+      <div class="actions">
+        <span class="hint"></span>
+        <button id="run-agent" type="button" class="primary">Ask the agent</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 id="chain-title">1 · The chain</h2>
+    <div class="status hidden" id="status"><span class="dot"></span><span class="msg"></span></div>
+    <div id="chain"><div class="empty">Run the pipeline to see each tool call and what it passes on.</div></div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Handoff checks</h2>
+    <div id="checks"><div class="empty">After a run, each handoff is checked separately from what the tools reported.</div></div>
+  </section>
+
+  <section class="card hidden" id="answer-card">
+    <h2>Agent's answer</h2>
+    <div id="answer"></div>
+  </section>
+
+  <section class="card">
+    <h2 id="file-title">3 · Saved file</h2>
+    <div id="file"><div class="empty">The saved file is shown here after a run.</div></div>
+  </section>
+
+  <section class="card">
+    <h2>Output directory</h2>
+    <ul class="files" id="files"><li class="empty">No files yet.</li></ul>
+  </section>
+
+  <section class="card">
+    <h2>MCP server &amp; tools</h2>
+    <div id="mcp"><div class="empty">Every run connects to <code>/mcp</code> and calls <code>tools/list</code> first.</div></div>
+  </section>
+
+<script>
+const EXAMPLES = [
+  'Find the most popular Rust MCP SDKs, summarize them, and save the report to rust-mcp.md',
+  'Найди топ-5 проектов про vector database на Rust, сделай сводку и сохрани в vector-db.md',
+  'Research LLM agent frameworks in Go (3 repos), focus on maturity, save as go-agents.md',
+];
+
+const $ = (id) => document.getElementById(id);
+const chainEl = $('chain');
+const checksEl = $('checks');
+const fileEl = $('file');
+const mcpEl = $('mcp');
+const statusEl = $('status');
+const buttons = [$('run-pipeline'), $('run-agent')];
+
+function el(tag, attrs = {}, text) {
+  const node = document.createElement(tag);
+  Object.assign(node, attrs);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function json(value) {
+  return JSON.stringify(value, null, 2);
+}
+
+function setStatus(kind, message) {
+  statusEl.className = `status ${kind}`;
+  statusEl.querySelector('.msg').textContent = message;
+}
+
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
+    $('pane-pipeline').classList.toggle('hidden', tab.dataset.mode !== 'pipeline');
+    $('pane-agent').classList.toggle('hidden', tab.dataset.mode !== 'agent');
+  });
+});
+
+function renderMcp(mcp) {
+  if (!mcp) return;
+  const meta = el('dl', { className: 'meta' });
+  [['Endpoint', mcp.url], ['Server', mcp.server || '(not reported)'], ['Tools', String(mcp.tools.length)]]
+    .forEach(([k, v]) => meta.append(el('dt', {}, k), el('dd', {}, v)));
+  const tools = mcp.tools.map((tool) => {
+    const props = Object.keys(tool.input_schema?.properties || {});
+    const required = new Set(tool.input_schema?.required || []);
+    const head = el('div', { className: 'step-head' });
+    head.append(
+      el('span', { className: 'step-name' }, tool.name),
+      el('span', { className: 'muted' }, `(${props.map((p) => required.has(p) ? p : `${p}?`).join(', ')})`),
+    );
+    const details = el('details');
+    details.append(el('summary', {}, 'Input schema'), el('pre', {}, json(tool.input_schema)));
+    const block = el('div', { className: 'step' });
+    block.style.marginTop = '0.6rem';
+    block.append(head, el('p', { className: 'tool-desc' }, tool.description || '(no description)'), details);
+    return block;
+  });
+  mcpEl.replaceChildren(meta, ...tools);
+}
+
+/// What one step handed to the next, shown between the two step boxes.
+function handoffText(call, next) {
+  const out = call.structured;
+  if (!out || !next) return null;
+  const id = out.artifact_id;
+  const sum = out.checksum ? ` · ${out.checksum}` : '';
+  if (next.arguments?.source_id === id) return `↓ artifact ${id}${sum} → source_id of ${next.name}`;
+  return '↓';
+}
+
+function renderChain(run) {
+  const calls = run.calls || [];
+  $('chain-title').textContent = `1 · The chain (${calls.length} tool call${calls.length === 1 ? '' : 's'})`;
+  if (calls.length === 0) {
+    chainEl.replaceChildren(el('div', { className: 'empty' }, 'No tool was called.'));
+    return;
+  }
+  const nodes = [];
+  calls.forEach((call, i) => {
+    const head = el('div', { className: 'step-head' });
+    head.append(
+      el('span', { className: 'step-name' }, `${call.step}. ${call.name}`),
+      el('span', { className: `badge ${call.is_error ? 'err' : 'ok'}` }, call.is_error ? 'isError' : 'ok'),
+      el('span', { className: 'muted' }, `${call.ms} ms`),
+    );
+    if (call.structured?.artifact_id) {
+      head.append(el('span', { className: 'artifact' }, `→ ${call.structured.artifact_id}`));
+    }
+    if (call.structured?.filename) {
+      head.append(el('span', { className: 'artifact' }, `→ ${call.structured.filename}`));
+    }
+    const block = el('div', { className: `step${call.is_error ? ' err' : ''}` });
+    block.append(
+      head,
+      el('div', { className: 'label' }, run.mode === 'agent' ? 'Arguments (chosen by the LLM)' : 'Arguments (built from the previous step)'),
+      el('pre', {}, json(call.arguments)),
+      el('div', { className: 'label' }, 'Result'),
+      el('pre', {}, call.result_text),
+    );
+    if (call.structured) {
+      const details = el('details');
+      details.append(el('summary', {}, 'structuredContent'), el('pre', {}, json(call.structured)));
+      block.append(details);
+    }
+    nodes.push(block);
+    const handoff = handoffText(call, calls[i + 1]);
+    if (handoff) nodes.push(el('div', { className: 'handoff' }, handoff));
+  });
+  chainEl.replaceChildren(...nodes);
+}
+
+function renderChecks(checks) {
+  if (!checks?.length) {
+    checksEl.replaceChildren(el('div', { className: 'empty' }, 'Nothing to check.'));
+    return;
+  }
+  checksEl.replaceChildren(...checks.map((check) => {
+    const row = el('div', { className: `check ${check.ok ? 'ok' : 'fail'}` });
+    const body = el('div');
+    body.append(el('div', { className: 'name' }, check.name), el('div', { className: 'detail' }, check.detail));
+    row.append(el('span', { className: 'icon' }, check.ok ? '✓' : '✗'), body);
+    return row;
+  }));
+}
+
+async function showFile(name) {
+  $('file-title').textContent = `3 · Saved file: ${name}`;
+  fileEl.replaceChildren(el('div', { className: 'empty' }, 'Loading...'));
+  try {
+    const file = await (await fetch(`/api/files/${encodeURIComponent(name)}`)).json();
+    if (file.error) {
+      fileEl.replaceChildren(el('div', { className: 'empty' }, file.error));
+      return;
+    }
+    const meta = el('div', { className: 'muted' }, `${file.bytes} bytes · ${file.checksum} (read back from disk)`);
+    fileEl.replaceChildren(meta, el('pre', {}, file.content));
+  } catch (e) {
+    fileEl.replaceChildren(el('div', { className: 'empty' }, `Error: ${e.message || e}`));
+  }
+}
+
+async function refreshFiles() {
+  try {
+    const files = await (await fetch('/api/files')).json();
+    if (!files.length) {
+      $('files').replaceChildren(el('li', { className: 'empty' }, 'No files yet.'));
+      return;
+    }
+    $('files').replaceChildren(...files.map((f) => {
+      const li = el('li');
+      const open = el('button', { type: 'button', className: 'link' }, f.name);
+      open.addEventListener('click', () => showFile(f.name));
+      li.append(open, el('span', { className: 'muted' }, `${f.bytes} bytes · ${new Date(f.modified * 1000).toLocaleString()}`));
+      return li;
+    }));
+  } catch (_) { /* the list is a convenience */ }
+}
+
+async function run(url, body, pendingText) {
+  buttons.forEach((b) => { b.disabled = true; });
+  setStatus('pending', pendingText);
+  chainEl.replaceChildren(el('div', { className: 'empty' }, 'Connecting (initialize → tools/list) and running the chain...'));
+  checksEl.replaceChildren(el('div', { className: 'empty' }, 'Waiting for the chain to finish...'));
+  $('answer-card').classList.add('hidden');
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+    const result = await res.json();
+    renderMcp(result.mcp);
+    renderChain(result);
+    renderChecks(result.checks);
+    if (result.answer) {
+      $('answer').textContent = result.answer;
+      $('answer-card').classList.remove('hidden');
+    }
+    const passed = (result.checks || []).filter((c) => c.ok).length;
+    const total = (result.checks || []).length;
+    if (result.error) {
+      setStatus('err', result.error);
+    } else if (result.ok) {
+      setStatus('ok', `Chain completed · ${passed}/${total} handoff checks passed`);
+    } else {
+      setStatus('err', `Chain completed, but only ${passed}/${total} handoff checks passed`);
+    }
+    if (result.saved_file) showFile(result.saved_file);
+    refreshFiles();
+  } catch (e) {
+    setStatus('err', `Error: ${e.message || e}`);
+  } finally {
+    buttons.forEach((b) => { b.disabled = false; });
+  }
+}
+
+$('run-pipeline').addEventListener('click', () => {
+  const optional = (id) => $(id).value.trim() || undefined;
+  run('/api/pipeline', {
+    query: $('query').value.trim(),
+    limit: Number($('limit').value),
+    language: $('language').value,
+    filename: optional('filename'),
+    focus: optional('focus'),
+  }, 'Running search → summarize → save_to_file...');
+});
+
+function askAgent() {
+  const question = $('question').value.trim() || $('question').placeholder;
+  $('question').value = question;
+  run('/api/ask', { question }, 'The agent is chaining the tools...');
+}
+$('run-agent').addEventListener('click', askAgent);
+$('question').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) askAgent();
+});
+EXAMPLES.forEach((text) => {
+  const chip = el('button', { type: 'button', className: 'chip' }, text);
+  chip.addEventListener('click', () => { $('question').value = text; askAgent(); });
+  $('examples').append(chip);
+});
+
+fetch('/api/config')
+  .then((r) => r.json())
+  .then((cfg) => { $('hint').textContent = `MCP: ${cfg.mcp_url} · model: ${cfg.model} · output: ${cfg.output_dir}/`; })
+  .catch(() => {});
+refreshFiles();
+</script>
+</body>
+</html>
