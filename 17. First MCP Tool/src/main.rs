@@ -586,10 +586,17 @@ impl Agent {
             .map_err(|e| format!("tools/list failed: {e}"))?;
         run.mcp = Some(McpInfo {
             url: self.mcp_url.clone(),
-            server: client
-                .peer_info()
-                .and_then(|info| info.server_info.as_ref())
-                .map(|s| format!("{} v{}", s.name, s.version)),
+            // Read `serverInfo` from the wire JSON so this doesn't depend on
+            // the exact shape of rmcp's Rust struct for it.
+            server: client.peer_info().and_then(|info| {
+                let info = serde_json::to_value(&*info).ok()?;
+                let server = &info["serverInfo"];
+                Some(format!(
+                    "{} v{}",
+                    server["name"].as_str()?,
+                    server["version"].as_str()?
+                ))
+            }),
             tools: tools.iter().map(ToolInfo::from).collect(),
         });
         let llm_tools: Vec<Value> = tools.iter().map(openai_tool).collect();
