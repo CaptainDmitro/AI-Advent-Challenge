@@ -28,7 +28,7 @@
 
 ## Demo
 
-_(video to be added after recording)_
+https://github.com/user-attachments/assets/e725c557-c70b-41d1-8328-15b30445b2d0
 
 ## What this is
 
