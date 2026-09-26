@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Orchestration</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --chip-bg: #eef0ff;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --err: #dc2626;
+    --s0: #2563eb;
+    --s1: #d97706;
+    --s2: #059669;
+    --s3: #db2777;
+    --s4: #7c3aed;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --chip-bg: #262a40;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --err: #f87171;
+      --s0: #60a5fa;
+      --s1: #fbbf24;
+      --s2: #34d399;
+      --s3: #f472b6;
+      --s4: #a78bfa;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2rem;
+  }
+
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.98rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem; }
+  .card h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0;
+  }
+
+  textarea {
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.55rem 0.7rem;
+    width: 100%;
+    min-height: 4.6rem;
+    resize: vertical;
+  }
+  .examples { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+  .chip {
+    background: var(--chip-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-align: left;
+  }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.8rem; }
+  .hint { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; flex: none; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .link { background: none; color: var(--primary); padding: 0; font-size: 0.88rem; font-weight: 600; }
+
+  .status { display: flex; align-items: center; gap: 0.55rem; font-weight: 600; margin-bottom: 0.7rem; }
+  .dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .status.ok .dot { background: var(--ok); }
+  .status.err .dot { background: var(--err); }
+  .status.pending .dot { animation: pulse 1.1s ease-in-out infinite; }
+  .status.err .msg { color: var(--err); }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  code, pre, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.84em; }
+  pre {
+    background: var(--code-bg);
+    padding: 0.7em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.4em 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 20rem;
+    font-size: 0.8rem;
+  }
+
+  /* Server registry */
+  .servers { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.7rem; }
+  .server { border: 1px solid var(--border); border-top: 4px solid var(--c, var(--text-muted)); border-radius: 10px; padding: 0.75rem 0.85rem; min-width: 0; }
+  .server.down { opacity: 0.75; border-top-color: var(--err); }
+  .server-head { display: flex; align-items: center; gap: 0.5rem; }
+  .server-name { font-weight: 700; font-size: 1rem; }
+  .server .url { color: var(--text-muted); font-size: 0.75rem; overflow-wrap: anywhere; margin-top: 0.15rem; }
+  .server .instr { font-size: 0.83rem; line-height: 1.45; margin: 0.45rem 0; }
+  .server ul { list-style: none; padding: 0; margin: 0; }
+  .server li { font-size: 0.8rem; padding: 0.15rem 0; overflow-wrap: anywhere; }
+  .server .err-text { color: var(--err); font-size: 0.82rem; margin-top: 0.4rem; overflow-wrap: anywhere; }
+
+  .badge { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 999px; color: #fff; white-space: nowrap; }
+  .badge.ok { background: var(--ok); }
+  .badge.err { background: var(--err); }
+  .badge.srv { background: var(--c, var(--text-muted)); }
+  .muted { color: var(--text-muted); font-size: 0.8rem; }
+
+  /* Route strip: one pill per call, colored by server */
+  .route { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-bottom: 0.9rem; }
+  .route .pill { border: 1.5px solid var(--c, var(--err)); color: var(--text); border-radius: 999px; padding: 0.15rem 0.55rem; font-size: 0.75rem; }
+  .route .pill.err { border-style: dashed; }
+  .route .arrow { color: var(--text-muted); font-size: 0.8rem; }
+
+  /* Timeline */
+  .round { border-left: 2px solid var(--border); margin-left: 0.4rem; padding: 0 0 0.6rem 0.9rem; position: relative; }
+  .round::before { content: ""; position: absolute; left: -0.42rem; top: 0.25rem; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: var(--primary); }
+  .round-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+  .step { border: 1px solid var(--border); border-left: 4px solid var(--c, var(--err)); border-radius: 10px; padding: 0.6rem 0.8rem; margin-bottom: 0.45rem; }
+  .step.err { border-color: var(--err); border-left-color: var(--c, var(--err)); }
+  .step-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .step-name { font-weight: 700; font-size: 0.9rem; }
+  .args { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; overflow-wrap: anywhere; }
+  details summary { cursor: pointer; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem; }
+
+  .check { display: flex; gap: 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
+  .check:first-child { border-top: none; padding-top: 0; }
+  .check .icon { font-weight: 800; flex: none; width: 1.1rem; text-align: center; }
+  .check.ok .icon { color: var(--ok); }
+  .check.fail .icon { color: var(--err); }
+  .check .name { font-weight: 600; font-size: 0.92rem; }
+  .check .detail { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.15rem; overflow-wrap: anywhere; }
+
+  #answer { font-size: 1rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .files { list-style: none; margin: 0; padding: 0; }
+  .files li { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.35rem 0; border-top: 1px solid var(--border); font-size: 0.88rem; }
+  .files li:first-child { border-top: none; }
+  .empty { color: var(--text-muted); font-size: 0.92rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>MCP Orchestration</h1>
+    <p>One agent, several MCP servers: it picks the tool, routes each call to the server that owns it, and runs a long flow.</p>
+  </header>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 id="registry-title">Registered MCP servers</h2>
+      <button type="button" class="link" id="reconnect">Reconnect</button>
+    </div>
+    <div class="servers" id="servers"><div class="empty">Connecting to every server (initialize → tools/list)...</div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Ask the orchestrator</h2></div>
+    <textarea id="question" spellcheck="false" placeholder="Compare the top 3 crates for building MCP servers in Rust: crates.io stats plus their GitHub repos' activity. Save a Markdown comparison table to rust-mcp.md and read it back."></textarea>
+    <div class="examples" id="examples"></div>
+    <div class="actions">
+      <span class="hint" id="hint"></span>
+      <button id="run" type="button" class="primary">Run</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2 id="flow-title">1 · The flow</h2></div>
+    <div class="status hidden" id="status"><span class="dot"></span><span class="msg"></span></div>
+    <div class="route hidden" id="route"></div>
+    <div id="flow"><div class="empty">Each tool call appears here, grouped by LLM round and colored by the server it was routed to.</div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>2 · Checks: choice, routing, order</h2></div>
+    <div id="checks"><div class="empty">After a run, the flow is checked against the servers' tool lists and the order of the calls.</div></div>
+  </section>
+
+  <section class="card hidden" id="answer-card">
+    <div class="card-head"><h2>Agent's answer</h2></div>
+    <div id="answer"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2 id="note-title">3 · Notes (the <code>notes</code> server's directory)</h2></div>
+    <ul class="files" id="files"><li class="empty">No notes yet.</li></ul>
+    <div id="note"></div>
+  </section>
+
+<script>
+const EXAMPLES = [
+  'Compare the top 3 crates for building MCP servers in Rust: crates.io stats plus their GitHub repos\' activity. Save a Markdown comparison table to rust-mcp.md and read it back.',
+  'Найди 3 популярных крейта для HTTP-клиента, проверь их GitHub-репозитории (звёзды, открытые issues, последний push) и сохрани сравнение в http-clients.md',
+  'Is serde or tokio more actively maintained on GitHub right now? Use crates.io to find their repositories first.',
+  'What notes are saved? Show me the newest one.',
+];
+
+const $ = (id) => document.getElementById(id);
+const colors = new Map();
+
+function el(tag, attrs = {}, text) {
+  const node = document.createElement(tag);
+  Object.assign(node, attrs);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function colorOf(server) {
+  if (!server) return 'var(--err)';
+  if (!colors.has(server)) colors.set(server, `var(--s${colors.size % 5})`);
+  return colors.get(server);
+}
+
+function setStatus(kind, message) {
+  const status = $('status');
+  status.className = `status ${kind}`;
+  status.querySelector('.msg').textContent = message;
+}
+
+function renderServers(servers) {
+  if (!servers?.length) return;
+  const up = servers.filter((s) => s.connected).length;
+  const tools = servers.reduce((n, s) => n + s.tools.length, 0);
+  $('registry-title').textContent = `Registered MCP servers · ${up}/${servers.length} connected · ${tools} tools`;
+  $('servers').replaceChildren(...servers.map((s) => {
+    const card = el('div', { className: `server${s.connected ? '' : ' down'}` });
+    card.style.setProperty('--c', colorOf(s.name));
+    const head = el('div', { className: 'server-head' });
+    head.append(
+      el('span', { className: 'server-name mono' }, s.name),
+      el('span', { className: `badge ${s.connected ? 'ok' : 'err'}` }, s.connected ? 'connected' : 'unavailable'),
+      el('span', { className: 'muted' }, `${s.ms} ms`),
+    );
+    card.append(head, el('div', { className: 'url mono' }, `${s.url}${s.server ? ` · ${s.server}` : ''}`));
+    if (s.instructions) card.append(el('p', { className: 'instr' }, s.instructions));
+    if (s.error) card.append(el('div', { className: 'err-text' }, s.error));
+    const list = el('ul');
+    s.tools.forEach((t) => {
+      const props = Object.keys(t.input_schema?.properties || {});
+      const required = new Set(t.input_schema?.required || []);
+      const li = el('li', { className: 'mono' }, `${t.qualified}(${props.map((p) => required.has(p) ? p : `${p}?`).join(', ')})`);
+      li.title = t.description || '';
+      list.append(li);
+    });
+    card.append(list);
+    return card;
+  }));
+}
+
+async function loadServers() {
+  $('reconnect').disabled = true;
+  try {
+    renderServers(await (await fetch('/api/servers')).json());
+  } catch (e) {
+    $('servers').replaceChildren(el('div', { className: 'empty' }, `Error: ${e.message || e}`));
+  } finally {
+    $('reconnect').disabled = false;
+  }
+}
+
+function shortArgs(args) {
+  if (!args || typeof args !== 'object') return String(args);
+  return Object.entries(args)
+    .map(([k, v]) => {
+      let text = typeof v === 'string' ? v : JSON.stringify(v);
+      if (text.length > 70) text = `${text.slice(0, 70)}… (${text.length} chars)`;
+      return `${k}: ${text}`;
+    })
+    .join(' · ');
+}
+
+function renderFlow(run) {
+  const calls = run.calls || [];
+  const servers = new Set(calls.filter((c) => c.server).map((c) => c.server));
+  $('flow-title').textContent = `1 · The flow (${calls.length} tool call${calls.length === 1 ? '' : 's'}, ${servers.size} server${servers.size === 1 ? '' : 's'}, ${run.llm_rounds} LLM round${run.llm_rounds === 1 ? '' : 's'})`;
+
+  const route = $('route');
+  route.classList.toggle('hidden', calls.length === 0);
+  const pills = [];
+  calls.forEach((c, i) => {
+    if (i > 0) pills.push(el('span', { className: 'arrow' }, '→'));
+    const pill = el('span', { className: `pill mono${c.is_error ? ' err' : ''}` }, `${c.server || '?'} · ${c.tool}`);
+    pill.style.setProperty('--c', colorOf(c.server));
+    pills.push(pill);
+  });
+  route.replaceChildren(...pills);
+
+  if (calls.length === 0) {
+    $('flow').replaceChildren(el('div', { className: 'empty' }, 'No tool was called.'));
+    return;
+  }
+  const rounds = new Map();
+  calls.forEach((c) => {
+    if (!rounds.has(c.round)) rounds.set(c.round, []);
+    rounds.get(c.round).push(c);
+  });
+  const nodes = [...rounds.entries()].map(([round, group]) => {
+    const block = el('div', { className: 'round' });
+    block.append(el('div', { className: 'round-title' }, `LLM round ${round}${group.length > 1 ? ` · ${group.length} calls in one round` : ''}`));
+    group.forEach((c) => {
+      const step = el('div', { className: `step${c.is_error ? ' err' : ''}` });
+      step.style.setProperty('--c', colorOf(c.server));
+      const head = el('div', { className: 'step-head' });
+      const serverBadge = el('span', { className: 'badge srv' }, c.server ? `→ ${c.server}` : 'not routed');
+      serverBadge.style.setProperty('--c', colorOf(c.server));
+      head.append(
+        el('span', { className: 'step-name mono' }, `${c.step}. ${c.tool}`),
+        serverBadge,
+        el('span', { className: `badge ${c.is_error ? 'err' : 'ok'}` }, c.is_error ? 'error' : 'ok'),
+        el('span', { className: 'muted mono' }, `${c.requested} · ${c.ms} ms`),
+      );
+      step.append(head, el('div', { className: 'args mono' }, shortArgs(c.arguments)));
+      const details = el('details');
+      details.open = c.is_error;
+      details.append(el('summary', {}, 'Arguments and result'), el('pre', {}, JSON.stringify(c.arguments, null, 2)), el('pre', {}, c.result_text));
+      step.append(details);
+      block.append(step);
+    });
+    return block;
+  });
+  $('flow').replaceChildren(...nodes);
+}
+
+function renderChecks(checks) {
+  if (!checks?.length) {
+    $('checks').replaceChildren(el('div', { className: 'empty' }, 'Nothing to check.'));
+    return;
+  }
+  $('checks').replaceChildren(...checks.map((check) => {
+    const row = el('div', { className: `check ${check.ok ? 'ok' : 'fail'}` });
+    const body = el('div');
+    body.append(el('div', { className: 'name' }, check.name), el('div', { className: 'detail' }, check.detail));
+    row.append(el('span', { className: 'icon' }, check.ok ? '✓' : '✗'), body);
+    return row;
+  }));
+}
+
+async function showNote(name) {
+  $('note').replaceChildren(el('div', { className: 'empty' }, 'Loading...'));
+  try {
+    const note = await (await fetch(`/api/notes/${encodeURIComponent(name)}`)).json();
+    if (note.error) {
+      $('note').replaceChildren(el('div', { className: 'empty' }, note.error));
+      return;
+    }
+    $('note').replaceChildren(
+      el('div', { className: 'muted', style: 'margin-top:0.6rem' }, `${note.name} · ${note.bytes} bytes · ${note.checksum} (read from disk)`),
+      el('pre', {}, note.content),
+    );
+  } catch (e) {
+    $('note').replaceChildren(el('div', { className: 'empty' }, `Error: ${e.message || e}`));
+  }
+}
+
+async function refreshNotes() {
+  try {
+    const notes = await (await fetch('/api/notes')).json();
+    if (!notes.length) {
+      $('files').replaceChildren(el('li', { className: 'empty' }, 'No notes yet.'));
+      return;
+    }
+    $('files').replaceChildren(...notes.map((n) => {
+      const li = el('li');
+      const open = el('button', { type: 'button', className: 'link mono' }, n.filename);
+      open.addEventListener('click', () => showNote(n.filename));
+      li.append(open, el('span', { className: 'muted' }, `${n.bytes} bytes · ${new Date(n.modified * 1000).toLocaleString()}`));
+      return li;
+    }));
+  } catch (_) { /* the list is a convenience */ }
+}
+
+async function ask() {
+  const question = $('question').value.trim() || $('question').placeholder;
+  $('question').value = question;
+  $('run').disabled = true;
+  setStatus('pending', 'Connecting to the servers, then the agent plans and calls tools...');
+  $('route').classList.add('hidden');
+  $('flow').replaceChildren(el('div', { className: 'empty' }, 'Running... a long flow can take a minute.'));
+  $('checks').replaceChildren(el('div', { className: 'empty' }, 'Waiting for the flow to finish...'));
+  $('answer-card').classList.add('hidden');
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+    const run = await res.json();
+    renderServers(run.servers);
+    renderFlow(run);
+    renderChecks(run.checks);
+    if (run.answer) {
+      $('answer').textContent = run.answer;
+      $('answer-card').classList.remove('hidden');
+    }
+    const passed = (run.checks || []).filter((c) => c.ok).length;
+    const total = (run.checks || []).length;
+    if (run.error) setStatus('err', run.error);
+    else if (run.ok) setStatus('ok', `Done · ${passed}/${total} checks passed`);
+    else setStatus('err', `Done, but only ${passed}/${total} checks passed`);
+    const written = [...(run.calls || [])].reverse().find((c) => c.tool === 'write_note' && !c.is_error);
+    if (written?.structured?.filename) showNote(written.structured.filename);
+    refreshNotes();
+  } catch (e) {
+    setStatus('err', `Error: ${e.message || e}`);
+  } finally {
+    $('run').disabled = false;
+  }
+}
+
+$('run').addEventListener('click', ask);
+$('reconnect').addEventListener('click', loadServers);
+$('question').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ask();
+});
+EXAMPLES.forEach((text) => {
+  const chip = el('button', { type: 'button', className: 'chip' }, text);
+  chip.addEventListener('click', () => { $('question').value = text; ask(); });
+  $('examples').append(chip);
+});
+
+fetch('/api/config')
+  .then((r) => r.json())
+  .then((cfg) => { $('hint').textContent = `model: ${cfg.model} · ${cfg.servers.length} servers · notes: ${cfg.notes_dir}/`; })
+  .catch(() => {});
+loadServers();
+refreshNotes();
+</script>
+</body>
+</html>
