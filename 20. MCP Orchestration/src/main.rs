@@ -2323,9 +2323,9 @@ mod tests {
         let (server, tool) = registry.route("github__repo_info").unwrap();
         assert_eq!((server.spec.name.as_str(), tool), ("github", "repo_info"));
 
-        let wrong_server = registry.route("github__crate_info").unwrap_err();
+        let wrong_server = registry.route("github__crate_info").err().unwrap();
         assert!(wrong_server.contains("has no tool `crate_info`"), "{wrong_server}");
-        let unknown = registry.route("weather__forecast").unwrap_err();
+        let unknown = registry.route("weather__forecast").err().unwrap();
         assert!(unknown.contains("No connected MCP server named `weather`"), "{unknown}");
         assert!(registry.route("crate_info").is_err());
 
