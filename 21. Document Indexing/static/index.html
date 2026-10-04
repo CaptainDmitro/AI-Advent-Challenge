@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document Indexing</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --chip-bg: #eef0ff;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --err: #dc2626;
+    --fixed: #d97706;
+    --fixed-alt: #fbbf24;
+    --structural: #2563eb;
+    --structural-alt: #60a5fa;
+    --section: #9ca3af;
+    --section-alt: #d1d5db;
+    --win-bg: rgba(22, 163, 74, 0.12);
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --chip-bg: #262a40;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --err: #f87171;
+      --fixed: #fbbf24;
+      --fixed-alt: #b45309;
+      --structural: #60a5fa;
+      --structural-alt: #1d4ed8;
+      --section: #6b7280;
+      --section-alt: #4b5563;
+      --win-bg: rgba(34, 197, 94, 0.14);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2rem;
+  }
+
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.98rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    min-width: 0;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .card h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0;
+  }
+  .card h3 { font-size: 0.92rem; margin: 1rem 0 0.5rem; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.6rem; }
+  .stat { background: var(--code-bg); border-radius: 10px; padding: 0.6rem 0.75rem; }
+  .stat .v { font-size: 1.25rem; font-weight: 700; }
+  .stat .k { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.1rem; }
+
+  .params { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.7rem; }
+  label { display: block; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+  label b { color: var(--text); font-weight: 600; }
+  input, select {
+    font: inherit;
+    font-size: 0.92rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.45rem 0.6rem;
+    width: 100%;
+  }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.8rem; flex-wrap: wrap; }
+  .hint { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; flex: none; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .link { background: none; color: var(--primary); padding: 0; font-size: 0.88rem; font-weight: 600; }
+  .chip {
+    background: var(--chip-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-align: left;
+  }
+  .examples { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+
+  .status { display: flex; align-items: center; gap: 0.55rem; font-weight: 600; font-size: 0.9rem; }
+  .dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .status.ok .dot { background: var(--ok); }
+  .status.err .dot { background: var(--err); }
+  .status.err .msg { color: var(--err); }
+  .status.pending .dot { animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.84em; }
+  pre {
+    background: var(--code-bg);
+    padding: 0.7em;
+    border-radius: 8px;
+    margin: 0.4em 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 18rem;
+    overflow-y: auto;
+    font-size: 0.78rem;
+  }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+  th, td { text-align: left; padding: 0.4rem 0.55rem; border-top: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); border-top: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.win { background: var(--win-bg); font-weight: 700; }
+  td .why { display: block; color: var(--text-muted); font-size: 0.75rem; font-weight: 400; }
+  tr.group td { font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); background: var(--code-bg); }
+  .swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px; margin-right: 0.35rem; vertical-align: -0.05rem; }
+  .sw-fixed { background: var(--fixed); }
+  .sw-structural { background: var(--structural); }
+  .miss { color: var(--err); font-weight: 700; }
+  .rank1 { color: var(--ok); font-weight: 700; }
+
+  /* Chunk map: one bar per layer, segments proportional to bytes */
+  .map-row { display: grid; grid-template-columns: 96px 1fr; gap: 0.6rem; align-items: center; margin-top: 0.45rem; }
+  .map-row .lbl { font-size: 0.78rem; color: var(--text-muted); text-align: right; }
+  .bar { position: relative; height: 26px; background: var(--code-bg); border-radius: 6px; overflow: hidden; }
+  .seg { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--surface); cursor: pointer; }
+  .seg:hover { filter: brightness(1.15); outline: 2px solid var(--text); outline-offset: -2px; }
+  .seg.sel { outline: 2px solid var(--text); outline-offset: -2px; }
+  .bar.fixed .seg { top: 3px; bottom: 3px; opacity: 0.9; }
+  .seg.multi { background-image: repeating-linear-gradient(45deg, transparent 0 4px, rgba(0,0,0,0.18) 4px 7px); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.9rem; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.6rem; }
+  .chunk-detail { margin-top: 0.8rem; border: 1px solid var(--border); border-left: 4px solid var(--c, var(--primary)); border-radius: 10px; padding: 0.7rem 0.85rem; }
+  .meta { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.8rem; font-size: 0.82rem; }
+  .meta dt { color: var(--text-muted); }
+  .meta dd { margin: 0; overflow-wrap: anywhere; }
+
+  /* Search: two columns, one per strategy */
+  .search-row { display: flex; gap: 0.6rem; }
+  .search-row input[type=text] { flex: 1; }
+  .search-row input[type=number] { width: 4.5rem; flex: none; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin-top: 0.9rem; }
+  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+  .hit { border: 1px solid var(--border); border-left: 4px solid var(--c); border-radius: 10px; padding: 0.55rem 0.75rem; margin-bottom: 0.5rem; min-width: 0; }
+  .hit-head { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; }
+  .hit-head .score { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hit .src { font-size: 0.8rem; color: var(--text-muted); overflow-wrap: anywhere; margin-top: 0.15rem; }
+  .hit .sec { font-size: 0.86rem; font-weight: 600; overflow-wrap: anywhere; margin-top: 0.15rem; }
+  .hit .snippet { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 5.4em; overflow: hidden; }
+  details summary { cursor: pointer; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem; }
+  .empty { color: var(--text-muted); font-size: 0.9rem; }
+  .err-text { color: var(--err); font-size: 0.88rem; overflow-wrap: anywhere; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Document Indexing</h1>
+    <p>Documents → chunks → embeddings → a local index, built two ways: fixed-size windows vs. the documents' own structure.</p>
+  </header>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>1 · Corpus</h2>
+      <span class="hint" id="origin"></span>
+    </div>
+    <div class="stats" id="corpus-stats"><div class="empty">Loading…</div></div>
+    <details>
+      <summary>Files</summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Source</th><th>Kind</th><th class="num">Chars</th><th class="num">Pages</th><th class="num">Sections</th></tr></thead>
+          <tbody id="files"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>2 · Pipeline: chunk → embed → save</h2>
+      <span class="hint" id="embedder"></span>
+    </div>
+    <div class="params">
+      <div><label for="fixed_size"><b>Fixed</b> · window, chars</label><input id="fixed_size" type="number" min="200" max="4000" step="50"></div>
+      <div><label for="overlap"><b>Fixed</b> · overlap, chars</label><input id="overlap" type="number" min="0" max="2000" step="10"></div>
+      <div><label for="max_chars"><b>Structural</b> · max chunk, chars</label><input id="max_chars" type="number" min="300" max="6000" step="50"></div>
+      <div><label for="min_chars"><b>Structural</b> · join sections under, chars</label><input id="min_chars" type="number" min="0" max="3000" step="10"></div>
+    </div>
+    <div class="actions">
+      <div class="status" id="status"><span class="dot"></span><span class="msg"></span></div>
+      <button id="build" type="button" class="primary">Rebuild both indexes</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>3 · Comparison</h2>
+      <span class="hint">Green = the better value. Retrieval is measured on <span id="case-count">—</span> questions with a known answer section.</span>
+    </div>
+    <div class="table-wrap"><table id="compare"><tbody><tr><td class="empty">No index yet.</td></tr></tbody></table></div>
+    <h3>Per question</h3>
+    <div class="table-wrap"><table id="cases"><tbody><tr><td class="empty">—</td></tr></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>4 · Chunk map</h2>
+      <select id="doc" style="max-width: 420px"></select>
+    </div>
+    <div id="map"><div class="empty">Pick a document to see where each strategy cut it.</div></div>
+    <div class="legend">
+      <span><span class="swatch" style="background: var(--section)"></span>sections (headings / code items)</span>
+      <span><span class="swatch sw-fixed"></span>fixed chunks (overlapping windows, drawn alternately)</span>
+      <span><span class="swatch sw-structural"></span>structural chunks</span>
+      <span>striped = a chunk with text from several sections · click a chunk for its metadata</span>
+    </div>
+    <div id="chunk"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>5 · Search both indexes</h2></div>
+    <div class="search-row">
+      <input id="query" type="text" placeholder="Why compile a static musl binary instead of using Docker?" spellcheck="false">
+      <input id="k" type="number" min="1" max="20" value="5" title="top k">
+      <button id="search" type="button" class="primary">Search</button>
+    </div>
+    <div class="examples" id="examples"></div>
+    <div id="results"></div>
+  </section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const COLOR = { fixed: "var(--fixed)", structural: "var(--structural)" };
+const ALT = { fixed: "var(--fixed-alt)", structural: "var(--structural-alt)" };
+const EXAMPLES = [
+  "Which port does a deployed lesson listen on?",
+  "храните последние N сообщений как есть",
+  "how does the router refuse a tool on the wrong server",
+  "write-then-rename so a crash can't leave half a file",
+  "fn inspect initialize tools/list",
+];
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+function setStatus(kind, msg) {
+  $("status").className = "status " + kind;
+  $("status").querySelector(".msg").textContent = msg;
+}
+
+function fmtBytes(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+  if (n >= 1024) return (n / 1024).toFixed(0) + " KB";
+  return n + " B";
+}
+const pct = (x) => Math.round(x * 100) + "%";
+
+function renderCorpus(c) {
+  $("origin").textContent = c.origin;
+  const kinds = {};
+  c.files.forEach((f) => (kinds[f.kind] = (kinds[f.kind] || 0) + 1));
+  const stat = (v, k) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`;
+  $("corpus-stats").innerHTML =
+    stat(c.documents, Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(" · ")) +
+    stat(c.chars.toLocaleString(), "characters") +
+    stat("≈ " + Math.round(c.pages), "pages (1800 chars each)") +
+    stat("≈ " + c.tokens.toLocaleString(), "tokens");
+  $("files").innerHTML = c.files.map((f) =>
+    `<tr><td>${esc(f.source)}</td><td>${esc(f.kind)}</td><td class="num">${f.chars.toLocaleString()}</td><td class="num">${f.pages}</td><td class="num">${f.sections}</td></tr>`).join("");
+  const sel = $("doc");
+  const current = sel.value;
+  sel.innerHTML = c.files.map((f) => `<option value="${esc(f.source)}">${esc(f.source)}</option>`).join("");
+  sel.value = current || (c.files.find((f) => f.source === "DEPLOYMENT.md") || c.files[0] || {}).source || "";
+}
+
+// [label, getter, better ("hi" | "lo" | null), format, explanation]
+const METRICS = [
+  ["group", "Chunks"],
+  ["chunks", (s) => s.stats.chunks, null, String, ""],
+  ["avg size, chars", (s) => s.stats.avg_chars, null, (x) => Math.round(x), ""],
+  ["median / min / max", (s) => s.stats.median_chars, null, null, "", (s) => `${s.stats.median_chars} / ${s.stats.min_chars} / ${s.stats.max_chars}`],
+  ["std. dev., chars", (s) => s.stats.stddev_chars, "lo", (x) => Math.round(x), "how uniform the sizes are"],
+  ["avg ≈ tokens", (s) => s.stats.avg_tokens, null, (x) => Math.round(x), ""],
+  ["redundancy", (s) => s.stats.redundancy, "lo", (x) => "×" + x.toFixed(2), "chars indexed ÷ chars in corpus"],
+  ["group", "Respecting structure"],
+  ["inside one section", (s) => s.stats.single_section, "hi", pct, "chunk has text from exactly one section"],
+  ["starts at a section", (s) => s.stats.starts_at_section, "hi", pct, "begins at a heading / code item"],
+  ["ends at a paragraph", (s) => s.stats.ends_at_paragraph, "hi", pct, "doesn't stop mid-paragraph"],
+  ["group", "Retrieval"],
+  ["hit@1", (s) => s.eval?.hit_at_1, "hi", pct, "answer section is the top result"],
+  ["hit@3", (s) => s.eval?.hit_at_3, "hi", pct, "…is in the top 3"],
+  ["MRR@10", (s) => s.eval?.mrr, "hi", (x) => x.toFixed(2), "mean 1 / rank of the first hit"],
+  ["focus", (s) => s.eval?.focus, "hi", pct, "share of the hit chunk that is the answer (the rest is noise)"],
+  ["coverage@3", (s) => s.eval?.coverage_at_3, "hi", pct, "share of the answer section the top 3 contain"],
+  ["group", "Index"],
+  ["embedder", (s) => s.embedder, null, String, ""],
+  ["dimensions", (s) => s.dims, null, String, ""],
+  ["file size", (s) => s.stats.file_bytes, "lo", fmtBytes, ""],
+  ["chunking time", (s) => s.stats.chunk_ms, null, (x) => x + " ms", ""],
+  ["embedding time", (s) => s.stats.embed_ms, null, (x) => x + " ms", ""],
+];
+
+function renderComparison(cmp) {
+  if (cmp.corpus && cmp.corpus.files) renderCorpus(cmp.corpus);
+  const S = cmp.strategies || [];
+  if (cmp.error) setStatus("err", cmp.error);
+  else if (S.length) setStatus("ok", `Index saved · built ${new Date(S[0].created_at * 1000).toLocaleString()}` + (S.some((s) => s.stale) ? " · corpus changed since, rebuild" : ""));
+  if (!S.length) return;
+  const p = S[0].params;
+  for (const k of ["fixed_size", "overlap", "max_chars", "min_chars"]) $(k).value = p[k];
+
+  let html = `<thead><tr><th>Metric</th>${S.map((s) => `<th class="num"><span class="swatch sw-${s.strategy}"></span>${s.strategy}</th>`).join("")}</tr></thead><tbody>`;
+  for (const m of METRICS) {
+    if (m[0] === "group") { html += `<tr class="group"><td colspan="${S.length + 1}">${esc(m[1])}</td></tr>`; continue; }
+    const [label, get, better, fmt, why, custom] = m;
+    const vals = S.map(get);
+    let best = null;
+    if (better && vals.every((v) => typeof v === "number") && new Set(vals).size > 1) {
+      best = better === "hi" ? Math.max(...vals) : Math.min(...vals);
+    }
+    html += `<tr><td>${esc(label)}${why ? `<span class="why">${esc(why)}</span>` : ""}</td>` +
+      S.map((s, i) => {
+        const v = vals[i];
+        const shown = custom ? custom(s) : v === undefined || v === null ? "—" : fmt(v);
+        return `<td class="num${best !== null && v === best ? " win" : ""}">${esc(shown)}</td>`;
+      }).join("") + "</tr>";
+  }
+  $("compare").innerHTML = html + "</tbody>";
+
+  const evals = S.map((s) => s.eval);
+  if (!evals[0]) { $("cases").innerHTML = `<tbody><tr><td class="empty">No retrieval check for this corpus.</td></tr></tbody>`; return; }
+  $("case-count").textContent = evals[0].cases;
+  const rankCell = (r) => r.rank ? `<span class="${r.rank === 1 ? "rank1" : ""}">#${r.rank}</span>` : `<span class="miss">miss</span>`;
+  let rows = `<thead><tr><th>Question → expected section</th>${S.map((s) => `<th class="num"><span class="swatch sw-${s.strategy}"></span>rank · focus · coverage</th>`).join("")}</tr></thead><tbody>`;
+  evals[0].rows.forEach((row, i) => {
+    rows += `<tr><td>${esc(row.question)}<span class="why">${esc(row.source)} › ${esc(row.section)}</span></td>` +
+      evals.map((e) => {
+        const r = e.rows[i];
+        return `<td class="num" title="top: ${esc(r.top_chunk)} (${esc(r.top_section)}) score ${r.top_score}">${rankCell(r)} · ${r.focus === null ? "—" : pct(r.focus)} · ${pct(r.coverage)}</td>`;
+      }).join("") + "</tr>";
+  });
+  $("cases").innerHTML = rows + "</tbody>";
+  loadMap();
+}
+
+async function build() {
+  const body = {};
+  for (const k of ["fixed_size", "overlap", "max_chars", "min_chars"]) body[k] = Number($(k).value);
+  $("build").disabled = true;
+  setStatus("pending", "Chunking, embedding and saving both indexes…");
+  try {
+    renderComparison(await api("/api/index", body));
+  } catch (e) {
+    setStatus("err", "Request failed: " + e);
+  } finally {
+    $("build").disabled = false;
+  }
+}
+
+let selected = null;
+async function loadMap() {
+  const source = $("doc").value;
+  if (!source) return;
+  const m = await api("/api/map?source=" + encodeURIComponent(source));
+  if (m.error) { $("map").innerHTML = `<div class="err-text">${esc(m.error)}</div>`; return; }
+  const total = Math.max(1, m.bytes);
+  const seg = (start, end, color, extra, title, id) =>
+    `<div class="seg ${extra}" data-id="${esc(id || "")}" title="${esc(title)}" style="left:${(start / total) * 100}%;width:${Math.max(0.15, ((end - start) / total) * 100)}%;background-color:${color}"></div>`;
+  let html = `<div class="map-row"><div class="lbl">sections</div><div class="bar">` +
+    m.sections.map((s, i) => seg(s.start, s.end, i % 2 ? "var(--section-alt)" : "var(--section)", "", s.path)).join("") + `</div></div>`;
+  for (const st of m.strategies) {
+    const name = st.strategy;
+    html += `<div class="map-row"><div class="lbl">${esc(name)} · ${st.chunks.length}</div><div class="bar ${name}">` +
+      st.chunks.map((c, i) => seg(c.start, c.end, i % 2 ? ALT[name] : COLOR[name], (c.sections > 1 ? "multi" : "") + (c.chunk_id === selected ? " sel" : ""),
+        `${c.chunk_id}\n${c.section}\n${c.chars} chars · ${c.sections} section(s)`, c.chunk_id)).join("") + `</div></div>`;
+  }
+  $("map").innerHTML = html;
+  $("map").querySelectorAll(".seg[data-id]").forEach((el) => {
+    if (el.dataset.id) el.addEventListener("click", () => showChunk(el.dataset.id));
+  });
+}
+
+async function showChunk(id) {
+  selected = id;
+  document.querySelectorAll(".seg.sel").forEach((el) => el.classList.remove("sel"));
+  document.querySelectorAll(".seg[data-id]").forEach((el) => { if (el.dataset.id === id) el.classList.add("sel"); });
+  const c = await api("/api/chunk?id=" + encodeURIComponent(id));
+  if (c.error) { $("chunk").innerHTML = `<div class="err-text">${esc(c.error)}</div>`; return; }
+  const strategy = id.split(":")[0];
+  const row = (k, v) => `<dt>${esc(k)}</dt><dd>${v}</dd>`;
+  $("chunk").innerHTML = `<div class="chunk-detail" style="--c:${COLOR[strategy]}"><dl class="meta">` +
+    row("chunk_id", `<code>${esc(c.chunk_id)}</code>`) +
+    row("source", esc(c.source)) +
+    row("title", esc(c.title)) +
+    row("section", esc(c.section)) +
+    row("sections", c.sections.map(esc).join("<br>")) +
+    row("ordinal · bytes", `${c.ordinal} · ${c.start}–${c.end}`) +
+    row("size", `${c.chars} chars · ≈ ${c.tokens} tokens`) +
+    row("embedding", `${c.dims} dims, ${c.nonzero} non-zero · [${c.embedding_preview.join(", ")}, …]`) +
+    `</dl><pre>${esc(c.text)}</pre></div>`;
+}
+
+async function search() {
+  const query = $("query").value.trim() || $("query").placeholder;
+  $("query").value = query;
+  $("search").disabled = true;
+  $("results").innerHTML = `<div class="empty" style="margin-top:0.8rem">Searching…</div>`;
+  try {
+    const r = await api("/api/search", { query, k: Number($("k").value) || 5 });
+    if (r.error) { $("results").innerHTML = `<div class="err-text" style="margin-top:0.8rem">${esc(r.error)}</div>`; return; }
+    $("results").innerHTML = `<div class="cols">` + r.results.map((s) =>
+      `<div><h3><span class="swatch sw-${s.strategy}"></span>${esc(s.strategy)}</h3>` +
+      s.hits.map((h) => `<div class="hit" style="--c:${COLOR[s.strategy]}">
+          <div class="hit-head"><span>#${h.rank} · ${h.chars} chars · ≈ ${h.tokens} tok${h.sections.length > 1 ? ` · ${h.sections.length} sections` : ""}</span><span class="score">${h.score.toFixed(3)}</span></div>
+          <div class="sec">${esc(h.section)}</div>
+          <div class="src">${esc(h.source)} · <code>${esc(h.chunk_id.split("#")[1] || "")}</code></div>
+          <div class="snippet">${esc(h.text.trim())}</div>
+          <details><summary>full chunk</summary><pre>${esc(h.text)}</pre></details>
+        </div>`).join("") + `</div>`).join("") + `</div>`;
+  } catch (e) {
+    $("results").innerHTML = `<div class="err-text">Request failed: ${esc(e)}</div>`;
+  } finally {
+    $("search").disabled = false;
+  }
+}
+
+$("build").addEventListener("click", build);
+$("search").addEventListener("click", search);
+$("query").addEventListener("keydown", (e) => { if (e.key === "Enter") search(); });
+$("doc").addEventListener("change", () => { selected = null; $("chunk").innerHTML = ""; loadMap(); });
+$("examples").innerHTML = EXAMPLES.map((q) => `<button type="button" class="chip">${esc(q)}</button>`).join("");
+$("examples").querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => { $("query").value = b.textContent; search(); }));
+
+(async () => {
+  const cfg = await api("/api/config");
+  $("embedder").textContent = `embedder: ${cfg.embedder} · index: ${cfg.index_dir}/{fixed,structural}.json`;
+  for (const k of ["fixed_size", "overlap", "max_chars", "min_chars"]) $(k).value = cfg.defaults[k];
+  renderCorpus(await api("/api/corpus"));
+  renderComparison(await api("/api/compare"));
+})();
+</script>
+</body>
+</html>

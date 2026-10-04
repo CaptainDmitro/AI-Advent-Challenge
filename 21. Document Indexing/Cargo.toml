@@ -1,0 +1,15 @@
+[package]
+name = "document-indexing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+# Only for the optional OpenAI-compatible /embeddings backend (and the tests).
+# rustls keeps the musl build static.
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "query", "rustls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+# float_roundtrip: an index read back from disk has exactly the floats it was
+# saved with.
+serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync"] }
