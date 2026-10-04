@@ -237,7 +237,7 @@ fn heading(line: &str) -> Option<(usize, String)> {
         return None;
     }
     let title = rest.trim().trim_end_matches('#').trim();
-    (!title.is_empty()).then(|| title.to_string())
+    (!title.is_empty()).then(|| (level, title.to_string()))
 }
 
 fn markdown_title(text: &str) -> Option<String> {
@@ -649,9 +649,10 @@ fn chunk_structural(doc: &Document, spans: &[Span], params: &ChunkParams) -> Vec
                         .lines()
                         .find_map(item_label)
                         .filter(|sub| *sub != span.path)
-                        .map_or_else(|| span.path.clone(), |sub| {
-                            format!("{}{PATH_SEP}{sub}", span.path)
-                        }),
+                        .map_or_else(
+                            || span.path.clone(),
+                            |sub| format!("{}{PATH_SEP}{sub}", span.path),
+                        ),
                     _ => span.path.clone(),
                 };
                 drafts.push(Draft {
@@ -766,7 +767,10 @@ fn local_fit(texts: &[&str], dims: usize) -> (Vec<Vec<f32>>, Vec<f32>) {
             }
         }
     }
-    let idf: Vec<f32> = df.iter().map(|d| ((n + 1.0) / (d + 1.0)).ln() + 1.0).collect();
+    let idf: Vec<f32> = df
+        .iter()
+        .map(|d| ((n + 1.0) / (d + 1.0)).ln() + 1.0)
+        .collect();
     let vectors = raw.into_iter().map(|v| weigh(v, &idf)).collect();
     (vectors, idf)
 }
@@ -1419,7 +1423,10 @@ fn is_relevant(chunk: &Chunk, case: &EvalCase) -> bool {
 /// whose path contains the case's section.
 fn answer_spans<'a>(corpus: &'a Corpus, case: &EvalCase) -> Option<(&'a Document, Vec<&'a Span>)> {
     let (doc, spans) = corpus.find(case.source)?;
-    let answer: Vec<&Span> = spans.iter().filter(|s| s.path.contains(case.section)).collect();
+    let answer: Vec<&Span> = spans
+        .iter()
+        .filter(|s| s.path.contains(case.section))
+        .collect();
     Some((doc, answer))
 }
 
@@ -1520,7 +1527,10 @@ fn evaluate(corpus: &Corpus, index: &Index, cases: &[&EvalCase], raw: &[Vec<f32>
                 .filter(|&(_, e)| e <= doc.text.len())
                 .collect();
             top3.sort_unstable();
-            let total: usize = answer.iter().map(|s| char_len(&doc.text[s.start..s.end])).sum();
+            let total: usize = answer
+                .iter()
+                .map(|s| char_len(&doc.text[s.start..s.end]))
+                .sum();
             coverage = ratio(answer_chars(&doc.text, &answer, &top3), total);
         }
         if let Some(f) = focus {
@@ -1548,8 +1558,16 @@ fn evaluate(corpus: &Corpus, index: &Index, cases: &[&EvalCase], raw: &[Vec<f32>
         hit_at_1: ratio(hit1, n),
         hit_at_3: ratio(hit3, n),
         mrr: if n == 0 { 0.0 } else { round2(mrr / n as f64) },
-        focus: if focused == 0 { 0.0 } else { round2(focus_sum / focused as f64) },
-        coverage_at_3: if n == 0 { 0.0 } else { round2(coverage_sum / n as f64) },
+        focus: if focused == 0 {
+            0.0
+        } else {
+            round2(focus_sum / focused as f64)
+        },
+        coverage_at_3: if n == 0 {
+            0.0
+        } else {
+            round2(coverage_sum / n as f64)
+        },
         rows,
     }
 }
@@ -1629,8 +1647,21 @@ fn print_report(cmp: &Comparison) {
     );
     println!(
         "{:<12} {:>7} {:>8} {:>7} {:>6} {:>7} {:>7} {:>8} {:>8} {:>8} {:>7} {:>7} {:>7} {:>7} {:>7}",
-        "strategy", "chunks", "avg", "median", "max", "stddev", "redund", "1-sect", "starts", "ends", "hit@1",
-        "hit@3", "mrr", "focus", "cover"
+        "strategy",
+        "chunks",
+        "avg",
+        "median",
+        "max",
+        "stddev",
+        "redund",
+        "1-sect",
+        "starts",
+        "ends",
+        "hit@1",
+        "hit@3",
+        "mrr",
+        "focus",
+        "cover"
     );
     for s in &cmp.strategies {
         let st = &s.stats;
@@ -1769,7 +1800,9 @@ async fn search_api(
         return Json(fail("Type a query first.".to_string()));
     }
     if char_len(&query) > MAX_QUERY_CHARS {
-        return Json(fail(format!("Keep the query under {MAX_QUERY_CHARS} characters.")));
+        return Json(fail(format!(
+            "Keep the query under {MAX_QUERY_CHARS} characters."
+        )));
     }
     let k = req.k.unwrap_or(DEFAULT_TOP_K).clamp(1, MAX_TOP_K);
     let built = app.built.read().await;
@@ -2032,7 +2065,8 @@ async fn main() {
     let port = env_non_empty("PORT").unwrap_or_else(|| "3000".to_string());
     // Relative to the working directory: the lesson folder under `cargo run`,
     // `~/apps/lesson-21` on the VDS (the systemd unit's WorkingDirectory).
-    let index_dir = PathBuf::from(env_non_empty("INDEX_DIR").unwrap_or_else(|| "index".to_string()));
+    let index_dir =
+        PathBuf::from(env_non_empty("INDEX_DIR").unwrap_or_else(|| "index".to_string()));
     let embedder = embedder_from_env().unwrap_or_else(|e| {
         eprintln!("Error: {e}");
         std::process::exit(1);
@@ -2045,7 +2079,10 @@ async fn main() {
             });
             Corpus::new(dir, docs)
         }
-        None => Corpus::new("built-in: this repo's docs and code".to_string(), builtin_documents()),
+        None => Corpus::new(
+            "built-in: this repo's docs and code".to_string(),
+            builtin_documents(),
+        ),
     };
 
     // `app index`: rebuild both indexes, print the comparison, exit.
@@ -2135,7 +2172,10 @@ mod tests {
         assert!(kinds.contains(&"markdown") && kinds.contains(&"rust"));
         let lesson20 = corpus.find("20. MCP Orchestration/README.md").unwrap().0;
         assert_eq!(lesson20.title, "20. MCP Orchestration");
-        assert_eq!(corpus.find("06. First Agent/src/main.rs").unwrap().0.kind, DocKind::Rust);
+        assert_eq!(
+            corpus.find("06. First Agent/src/main.rs").unwrap().0.kind,
+            DocKind::Rust
+        );
     }
 
     #[test]
@@ -2185,7 +2225,10 @@ mod tests {
         );
         assert!(SAMPLE_RS[spans[2].start..spans[2].end].starts_with("/// Adds."));
         assert!(SAMPLE_RS[spans[2].start..spans[2].end].contains("// still inside"));
-        assert_eq!(item_label("    pub async fn respond(&self)").as_deref(), Some("fn respond"));
+        assert_eq!(
+            item_label("    pub async fn respond(&self)").as_deref(),
+            Some("fn respond")
+        );
         assert_eq!(item_label("let x = 1;"), None);
         assert_eq!(item_label("impl Agent {").as_deref(), Some("impl Agent"));
 
@@ -2252,14 +2295,29 @@ mod tests {
                 ("structural", &structural, params.max_chars),
             ] {
                 let ranges: Vec<(usize, usize)> = drafts.iter().map(|d| (d.start, d.end)).collect();
-                assert!(covers(&doc.text, &ranges), "{name} misses text in {}", doc.source);
+                assert!(
+                    covers(&doc.text, &ranges),
+                    "{name} misses text in {}",
+                    doc.source
+                );
                 for d in drafts.iter() {
-                    assert!(char_len(&doc.text[d.start..d.end]) <= limit, "{name} {}", doc.source);
-                    assert!(!d.section.is_empty() && !d.sections.is_empty(), "{name} {}", doc.source);
+                    assert!(
+                        char_len(&doc.text[d.start..d.end]) <= limit,
+                        "{name} {}",
+                        doc.source
+                    );
+                    assert!(
+                        !d.section.is_empty() && !d.sections.is_empty(),
+                        "{name} {}",
+                        doc.source
+                    );
                 }
             }
             for pair in structural.windows(2) {
-                assert!(pair[0].end <= pair[1].start, "structural chunks never overlap");
+                assert!(
+                    pair[0].end <= pair[1].start,
+                    "structural chunks never overlap"
+                );
             }
         }
     }
@@ -2308,9 +2366,17 @@ mod tests {
         let drafts = chunk_structural(&doc, &spans, &params);
         assert!(drafts.len() > 2);
         assert_eq!(drafts[0].section, "impl Agent");
-        assert!(drafts[1].section.starts_with("impl Agent › fn method_"), "{:?}", drafts[1]);
+        assert!(
+            drafts[1].section.starts_with("impl Agent › fn method_"),
+            "{:?}",
+            drafts[1]
+        );
         for d in &drafts[1..] {
-            assert!(doc.text[d.start..d.end].trim_start().starts_with("/// Method"));
+            assert!(
+                doc.text[d.start..d.end]
+                    .trim_start()
+                    .starts_with("/// Method")
+            );
         }
     }
 
@@ -2328,14 +2394,20 @@ mod tests {
             assert!((dot(v, v) - 1.0).abs() < 1e-4);
         }
         assert_eq!(local_fit(&texts, LOCAL_DIMS).0, vectors);
-        let query = weigh(hashed_tf("how is the service deployed to the VDS", LOCAL_DIMS), &idf);
+        let query = weigh(
+            hashed_tf("how is the service deployed to the VDS", LOCAL_DIMS),
+            &idf,
+        );
         let scores: Vec<f32> = vectors.iter().map(|v| dot(v, &query)).collect();
         assert!(scores[0] > scores[1] && scores[0] > scores[2], "{scores:?}");
         // Stems make Russian word forms meet: "сообщений" ~ "сообщения".
         let query = weigh(hashed_tf("последних сообщений", LOCAL_DIMS), &idf);
         let scores: Vec<f32> = vectors.iter().map(|v| dot(v, &query)).collect();
         assert!(scores[2] > scores[0] && scores[2] > scores[1], "{scores:?}");
-        assert_eq!(stems("crate_info Chunking"), vec!["crate_info", "crate", "info", "chunk"]);
+        assert_eq!(
+            stems("crate_info Chunking"),
+            vec!["crate_info", "crate", "info", "chunk"]
+        );
     }
 
     #[tokio::test]
@@ -2354,7 +2426,11 @@ mod tests {
             assert_eq!(index.meta.documents, corpus.docs.len());
             let mut ids = std::collections::HashSet::new();
             for c in &index.chunks {
-                assert!(ids.insert(c.chunk_id.clone()), "duplicate id {}", c.chunk_id);
+                assert!(
+                    ids.insert(c.chunk_id.clone()),
+                    "duplicate id {}",
+                    c.chunk_id
+                );
                 assert!(c.chunk_id.starts_with(index.meta.strategy.name()));
                 assert!(!c.source.is_empty() && !c.title.is_empty() && !c.section.is_empty());
                 let doc = corpus.find(&c.source).unwrap().0;
@@ -2416,17 +2492,32 @@ mod tests {
             let eval = report.eval.as_ref().unwrap();
             assert_eq!(eval.cases, EVAL.len());
             assert_eq!(eval.rows.len(), EVAL.len());
-            for x in [eval.hit_at_1, eval.hit_at_3, eval.mrr, eval.focus, eval.coverage_at_3] {
+            for x in [
+                eval.hit_at_1,
+                eval.hit_at_3,
+                eval.mrr,
+                eval.focus,
+                eval.coverage_at_3,
+            ] {
                 assert!((0.0..=1.0).contains(&x));
             }
             assert!(eval.hit_at_3 >= eval.hit_at_1);
-            assert!(eval.hit_at_3 > 0.3, "{} retrieval is broken: {eval:?}", report.strategy.name());
+            assert!(
+                eval.hit_at_3 > 0.3,
+                "{} retrieval is broken: {eval:?}",
+                report.strategy.name()
+            );
             assert!(!report.stale);
         }
         // A structural chunk is its section; a fixed window drags in the
         // neighbouring ones.
         let focus = |r: &StrategyReport| r.eval.as_ref().unwrap().focus;
-        assert!(focus(structural) > focus(fixed), "{} vs {}", focus(structural), focus(fixed));
+        assert!(
+            focus(structural) > focus(fixed),
+            "{} vs {}",
+            focus(structural),
+            focus(fixed)
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -2434,10 +2525,22 @@ mod tests {
     fn params_are_validated() {
         assert!(ChunkParams::default().validate().is_ok());
         let bad = [
-            ChunkParams { fixed_size: 50, ..ChunkParams::default() },
-            ChunkParams { overlap: 600, ..ChunkParams::default() },
-            ChunkParams { max_chars: 100, ..ChunkParams::default() },
-            ChunkParams { min_chars: 1000, ..ChunkParams::default() },
+            ChunkParams {
+                fixed_size: 50,
+                ..ChunkParams::default()
+            },
+            ChunkParams {
+                overlap: 600,
+                ..ChunkParams::default()
+            },
+            ChunkParams {
+                max_chars: 100,
+                ..ChunkParams::default()
+            },
+            ChunkParams {
+                min_chars: 1000,
+                ..ChunkParams::default()
+            },
         ];
         for p in bad {
             assert!(p.validate().is_err(), "{p:?}");
@@ -2528,7 +2631,10 @@ mod tests {
         assert_eq!(vectors.len(), 70);
         for (i, v) in vectors.iter().enumerate() {
             let expected = normalize(vec![(i + 1) as f32, 1.0, 0.0]);
-            assert!((v[0] - expected[0]).abs() < 1e-6, "vector {i} is out of order");
+            assert!(
+                (v[0] - expected[0]).abs() < 1e-6,
+                "vector {i} is out of order"
+            );
             assert!((dot(v, v) - 1.0).abs() < 1e-5);
         }
 
@@ -2538,9 +2644,14 @@ mod tests {
             "test".to_string(),
             vec![document("a.md", "# A\n\nalpha beta\n\n## B\n\ngamma delta\n").unwrap()],
         );
-        let index = build_index(&corpus, Strategy::Structural, &ChunkParams::default(), &embedder)
-            .await
-            .unwrap();
+        let index = build_index(
+            &corpus,
+            Strategy::Structural,
+            &ChunkParams::default(),
+            &embedder,
+        )
+        .await
+        .unwrap();
         assert_eq!(index.meta.dims, 3);
         assert!(index.meta.idf.is_empty());
 
