@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Citations and Sources</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --chip-bg: #eef0ff;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --ok-bg: rgba(22, 163, 74, 0.12);
+    --err: #dc2626;
+    --err-bg: rgba(220, 38, 38, 0.1);
+    --warn: #b45309;
+    --warn-bg: rgba(217, 119, 6, 0.12);
+    --cite: #2563eb;
+    --quote-bar: #7c3aed;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --chip-bg: #262a40;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --ok-bg: rgba(34, 197, 94, 0.14);
+      --err: #f87171;
+      --err-bg: rgba(248, 113, 113, 0.12);
+      --warn: #fbbf24;
+      --warn-bg: rgba(251, 191, 36, 0.12);
+      --cite: #60a5fa;
+      --quote-bar: #a78bfa;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2rem;
+  }
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.95rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    min-width: 0;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .card h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
+  h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 1.1rem 0 0.45rem; }
+
+  textarea, select, input {
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.45rem 0.6rem;
+  }
+  textarea { width: 100%; min-height: 4.2rem; resize: vertical; }
+  input[type=number] { width: 5rem; }
+  input[type=range] { padding: 0; width: 8rem; }
+  input[type=checkbox] { width: auto; }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.7rem; flex-wrap: wrap; }
+  .knobs { display: flex; gap: 0.9rem; flex-wrap: wrap; align-items: center; }
+  .knobs label { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; }
+  .hint { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+
+  .expect { background: var(--chip-bg); border-radius: 10px; padding: 0.65rem 0.8rem; font-size: 0.88rem; margin-bottom: 1rem; }
+  .expect b { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 0.2rem; }
+
+  .status { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-weight: 700; border-radius: 999px; padding: 0.2rem 0.7rem; }
+  .status.answered { background: var(--ok-bg); color: var(--ok); }
+  .status.unknown { background: var(--warn-bg); color: var(--warn); }
+  .status.error { background: var(--err-bg); color: var(--err); }
+  .meta { color: var(--text-muted); font-size: 0.76rem; }
+  .text { white-space: pre-wrap; line-height: 1.55; font-size: 0.95rem; overflow-wrap: anywhere; margin-top: 0.7rem; }
+  .text .cite { color: var(--cite); font-weight: 700; cursor: pointer; }
+  .clarify { margin-top: 0.7rem; background: var(--warn-bg); border-radius: 10px; padding: 0.6rem 0.8rem; font-size: 0.9rem; }
+  .clarify b { color: var(--warn); }
+  .clarify ul { margin: 0.35rem 0 0; padding-left: 1.2rem; color: var(--text-muted); font-size: 0.8rem; }
+  .error { color: var(--err); font-weight: 600; }
+  .empty { color: var(--text-muted); font-style: italic; }
+  .pending { color: var(--text-muted); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.9rem; }
+  .chip { font-size: 0.74rem; border-radius: 999px; padding: 0.15rem 0.6rem; background: var(--code-bg); color: var(--text-muted); }
+  .chip.yes { background: var(--ok-bg); color: var(--ok); }
+  .chip.no { background: var(--err-bg); color: var(--err); }
+  .chip.mid { background: var(--warn-bg); color: var(--warn); }
+  .chip code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  .sources { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .sources td, .sources th { padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .sources th { font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); }
+  .sources .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; overflow-wrap: anywhere; }
+  .sub { color: var(--text-muted); font-size: 0.76rem; margin-top: 0.15rem; }
+
+  blockquote { margin: 0 0 0.55rem; padding: 0.45rem 0.75rem; border-left: 3px solid var(--quote-bar); background: var(--code-bg); border-radius: 0 9px 9px 0; font-size: 0.86rem; line-height: 1.45; overflow-wrap: anywhere; }
+  blockquote.flash { outline: 2px solid var(--cite); }
+  blockquote .where { display: block; color: var(--text-muted); font-size: 0.72rem; margin-top: 0.3rem; }
+
+  details { margin-top: 0.8rem; }
+  summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+  details pre { white-space: pre-wrap; margin: 0.4rem 0 0; font-size: 0.74rem; background: var(--code-bg); border-radius: 9px; padding: 0.6rem; max-height: 20rem; overflow: auto; }
+  .cands tr.dropped td { opacity: 0.45; }
+  .scorebar { position: relative; height: 0.55rem; width: 3.2rem; background: var(--code-bg); border-radius: 4px; display: inline-block; vertical-align: middle; }
+  .scorebar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--cite); }
+  .scorebar s { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--err); }
+  .rejected { color: var(--err); font-size: 0.8rem; margin: 0.3rem 0 0; padding-left: 1.2rem; }
+
+  .table-wrap { overflow-x: auto; }
+  table.cases { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  .cases th, .cases td { text-align: left; padding: 0.5rem 0.45rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .cases th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .cases td.num { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: center; }
+  tr.case { cursor: pointer; }
+  tr.case:hover td { background: var(--code-bg); }
+  tr.case.active td { background: var(--chip-bg); }
+  .q { font-weight: 600; }
+  .tag { font-size: 0.68rem; border-radius: 999px; padding: 0.05rem 0.45rem; background: var(--code-bg); color: var(--text-muted); margin-left: 0.3rem; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .bad { color: var(--err); font-weight: 700; }
+  .warn { color: var(--warn); font-weight: 700; }
+  tfoot td { font-weight: 700; border-bottom: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Citations and Sources</h1>
+  <p>Every answer comes with its sources and word-for-word quotes, checked against the chunks. When the context is weak, the assistant says "I don't know" and asks you to clarify.</p>
+  <p class="hint" id="config">loading…</p>
+</header>
+
+<div class="card">
+  <div class="card-head"><h2>Ask</h2><span class="hint">or pick a control question below</span></div>
+  <textarea id="question" placeholder="e.g. Why does the deploy job of lesson 04 fail?"></textarea>
+  <div class="actions">
+    <div class="knobs">
+      <label>top-K before <select id="k_before"></select></label>
+      <label>top-K after <select id="k_after"></select></label>
+      <label>relevance threshold <input type="range" id="threshold_range" min="0" max="1" step="0.01"><input type="number" id="threshold" min="0" max="1" step="0.01"></label>
+      <label><input type="checkbox" id="judge"> LLM judge: does the answer mean what its quotes say?</label>
+    </div>
+    <button class="primary" id="ask">Ask</button>
+  </div>
+</div>
+
+<div id="expect"></div>
+
+<div class="card" id="answer">
+  <div class="text empty">Ask something, or click a control question.</div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Control questions</h2>
+    <button class="primary" id="run-all">Run all</button>
+  </div>
+  <div class="hint" style="margin-bottom:0.6rem">
+    q01–q10 are about the documents and should be answered with sources and quotes. n01–n04 aren't, and should get "I don't know" and a request to clarify, without a model call. Word for word: every quote was found in the chunk it names. Meaning: the judge says the answer is backed by its quotes. Facts: expected facts stated (and also quoted). Click a row to see the answer.
+  </div>
+  <div class="table-wrap">
+    <table class="cases">
+      <thead>
+        <tr><th>#</th><th>Question</th><th>Status</th><th>Sources</th><th>Quotes</th><th>Word for word</th><th>Meaning</th><th>Facts</th></tr>
+      </thead>
+      <tbody id="cases"></tbody>
+      <tfoot>
+        <tr><td></td><td>In scope</td><td class="num" id="t-status">–</td><td class="num" id="t-sources">–</td><td class="num" id="t-quotes">–</td><td class="num" id="t-verbatim">–</td><td class="num" id="t-meaning">–</td><td class="num" id="t-facts">–</td></tr>
+        <tr><td></td><td>Out of scope: "I don't know" + clarification, no model call</td><td class="num" id="t-unknown">–</td><td colspan="5"></td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const REASONS = {
+  low_relevance: "relevance below the threshold, so the model wasn't asked",
+  model_unsure: "the model found no answer in the fragments",
+  unverified: "no reply could be backed by word-for-word quotes",
+};
+let cases = [];
+const results = {};
+let active = null;
+let busy = false;
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  return res.json();
+}
+
+function settings() {
+  return {
+    k_before: Number($("k_before").value),
+    k_after: Number($("k_after").value),
+    threshold: Number($("threshold").value),
+    judge: $("judge").checked,
+  };
+}
+
+function setBusy(on) {
+  busy = on;
+  $("ask").disabled = on;
+  $("run-all").disabled = on;
+}
+
+const yes = (ok, label) => `<span class="chip ${ok ? "yes" : "no"}">${ok ? "✓" : "✗"} ${label}</span>`;
+
+function scoreBar(score, threshold) {
+  const w = Math.max(0, Math.min(1, score)) * 100;
+  const t = threshold == null ? "" : `<s style="left:${threshold * 100}%"></s>`;
+  return `<span class="scorebar"><i style="width:${w}%"></i>${t}</span>`;
+}
+
+function renderChecks(a, score) {
+  const g = a.grounding;
+  if (!g) return "";
+  let html = '<div class="checks">';
+  html += yes(g.has_sources, `sources: ${a.sources.length}`);
+  html += yes(g.has_quotes, `quotes: ${a.quotes.length}`);
+  html += yes(g.quotes_verified, "every quote word for word");
+  if (g.judge) {
+    const v = g.judge.verdict;
+    html += `<span class="chip ${v === "supported" ? "yes" : v === "partial" ? "mid" : "no"}">judge: ${esc(v)}</span>`;
+  } else if (g.judge_error) {
+    html += `<span class="chip no">judge failed: ${esc(g.judge_error)}</span>`;
+  }
+  html += `<span class="chip ${g.support >= 0.6 ? "yes" : "mid"}">terms in quotes: ${Math.round(g.support * 100)}%</span>`;
+  if (g.unsupported_terms.length) html += `<span class="chip mid">not quoted: <code>${g.unsupported_terms.map(esc).join(", ")}</code></span>`;
+  html += yes(g.grounded, "meaning matches the quotes");
+  if (a.attempts > 1) html += `<span class="chip mid">answered on retry</span>`;
+  if (score) {
+    html += score.facts.map((f) => `<span class="chip ${f.found ? "yes" : "no"}">${f.found ? "✓" : "✗"} <code>${esc(f.fact)}</code>${f.found && f.quoted ? " (quoted)" : ""}</span>`).join("");
+  }
+  html += "</div>";
+  if (g.judge?.unsupported?.length) {
+    html += '<ul class="rejected">' + g.judge.unsupported.map((u) => `<li>not backed: ${esc(u)}</li>`).join("") + "</ul>";
+  }
+  return html;
+}
+
+function renderAnswer(resp, kase) {
+  const el = $("answer");
+  if (!resp) {
+    el.innerHTML = '<div class="text pending">searching, answering, checking quotes…</div>';
+    return;
+  }
+  if (resp.error || !resp.answer) {
+    el.innerHTML = `<div class="error">${esc(resp.error || "no answer")}</div>`;
+    return;
+  }
+  const a = resp.answer;
+  const threshold = resp.settings?.threshold;
+  const t = a.timings || {};
+  const u = a.usage || {};
+  const status = a.status === "answered" ? "Answered" : a.status === "unknown" ? "I don't know" : "Error";
+  const meta = [
+    `best relevance ${a.best_score == null ? "–" : a.best_score.toFixed(2)} (threshold ${threshold?.toFixed(2)})`,
+    `${a.context.length} chunks in the prompt`,
+    `model calls ${a.attempts}${a.grounding?.judge ? " + judge" : ""}`,
+    `search ${t.retrieve_ms} ms · LLM ${t.llm_ms} ms${t.judge_ms ? ` · judge ${t.judge_ms} ms` : ""}`,
+    `${u.prompt_tokens ?? 0} + ${u.completion_tokens ?? 0} tokens`,
+  ];
+  let html = `<div class="card-head"><span class="status ${a.status}">${status}</span><span class="meta">${meta.join(" · ")}</span></div>`;
+  if (a.error) html += `<div class="error">${esc(a.error)}</div>`;
+
+  if (a.status === "answered") {
+    const text = esc(a.text).replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (m, nums) => `<span class="cite" data-n="${nums.split(",")[0].trim()}">[${nums}]</span>`);
+    html += `<div class="text">${text}</div>`;
+    html += renderChecks(a, resp.score);
+    html += "<h3>Sources</h3>";
+    html += `<table class="sources"><tr><th>#</th><th>file · section</th><th>chunk_id</th><th>relevance</th></tr>` +
+      a.sources.map((s) => `<tr><td class="num">[${s.n}]</td><td><b>${esc(s.source)}</b><div class="sub">${esc(s.section)}</div></td><td class="mono">${esc(s.chunk_id)}</td><td class="num">${scoreBar(s.score, threshold)} ${s.score.toFixed(2)}</td></tr>`).join("") +
+      "</table>";
+    html += "<h3>Quotes</h3>";
+    html += a.quotes.map((q, i) => `<blockquote id="quote-${i}" data-n="${q.n}">${esc(q.text)}<span class="where">[${q.n}] ${esc(q.source)} — ${esc(q.section)} · <span class="mono">${esc(q.chunk_id)}</span></span></blockquote>`).join("");
+  } else if (a.status === "unknown") {
+    html += `<div class="text">${esc(a.text)}</div>`;
+    html += `<div class="clarify"><b>Why:</b> ${esc(REASONS[a.unknown_reason] || a.unknown_reason)}.<br><b>Please clarify:</b> ${esc(a.clarification)}`;
+    if (a.hints?.length) html += `<ul>${a.hints.map((h) => `<li>nearest: ${esc(h)}</li>`).join("")}</ul>`;
+    html += "</div>";
+    if (resp.score) html += `<div class="checks">${yes(resp.score.status_ok, resp.case?.in_scope ? "should have been answered" : "out of scope: \"I don't know\" is right")}</div>`;
+  }
+
+  if (a.rejected?.length) {
+    html += `<details open><summary>Rejected replies (${a.rejected.length})</summary>` +
+      a.rejected.map((errs, i) => `<div class="sub">attempt ${i + 1}</div><ul class="rejected">${errs.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>`).join("") + "</details>";
+  }
+  if (a.candidates?.length) {
+    const kept = a.candidates.filter((c) => c.kept).length;
+    html += `<details><summary>Reranked candidates: ${kept} of ${a.candidates.length} passed the threshold</summary><table class="sources cands">
+      <tr><th>#</th><th>chunk</th><th>score</th></tr>` +
+      a.candidates.map((c) => `<tr class="${c.kept ? "" : "dropped"}"><td class="num">${c.kept ? "✓" : "✗"} ${c.rank}</td>
+        <td><b>${esc(c.source)}</b> <span class="sub">${esc(c.section)}</span><div class="sub">cos #${c.cosine_rank} ${c.cosine.toFixed(2)} · coverage ${c.coverage.toFixed(2)} · heading ${c.heading.toFixed(2)}${c.dropped ? " · <i>" + esc(c.dropped) + "</i>" : ""}</div></td>
+        <td class="num">${scoreBar(c.score, threshold)} ${c.score.toFixed(2)}</td></tr>`).join("") + "</table></details>";
+  }
+  if (a.messages?.length) {
+    html += `<details><summary>Prompt and raw replies</summary>` +
+      a.messages.map((m) => `<pre><b>${esc(m.role)}</b>\n${esc(m.content)}</pre>`).join("") +
+      (a.replies || []).map((r, i) => `<pre><b>reply ${i + 1}</b>\n${esc(r)}</pre>`).join("") + "</details>";
+  }
+  el.innerHTML = html;
+  el.querySelectorAll(".cite").forEach((c) => c.onclick = () => {
+    const q = el.querySelector(`blockquote[data-n="${c.dataset.n}"]`);
+    if (!q) return;
+    q.scrollIntoView({ behavior: "smooth", block: "center" });
+    q.classList.add("flash");
+    setTimeout(() => q.classList.remove("flash"), 1200);
+  });
+}
+
+function renderExpect(kase) {
+  if (!kase) { $("expect").innerHTML = ""; return; }
+  const src = kase.sources.length ? kase.sources.map((s) => `${esc(s.file)} — ${esc(s.section)}`).join("; ") : "none: out of scope";
+  $("expect").innerHTML = `<div class="expect"><b>Expected answer</b>${esc(kase.expect)}<div class="sub">Sources: ${src}</div></div>`;
+}
+
+const mark = (ok) => ok ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>';
+
+function renderCases() {
+  $("cases").innerHTML = cases.map((c) => {
+    const r = results[c.id];
+    let cells;
+    if (r === "pending") {
+      cells = '<td class="num" colspan="6"><span class="pending">…</span></td>';
+    } else if (!r) {
+      cells = '<td class="num" colspan="6">–</td>';
+    } else if (r.error || !r.answer || r.answer.error) {
+      cells = `<td colspan="6" class="bad">${esc(r.error || r.answer?.error || "error")}</td>`;
+    } else {
+      const a = r.answer, s = r.score, g = a.grounding;
+      const status = a.status === "answered"
+        ? `${mark(s.status_ok)} answered${a.attempts > 1 ? " (retry)" : ""}`
+        : `${mark(s.status_ok)} <span class="warn">don't know</span><div class="sub">${esc(a.unknown_reason)}</div>`;
+      cells = `<td>${status}</td>
+        <td class="num">${a.sources.length || "–"}</td>
+        <td class="num">${a.quotes.length || "–"}</td>
+        <td class="num">${g ? mark(g.quotes_verified) : "–"}</td>
+        <td class="num">${g ? mark(g.grounded) + (g.judge ? `<div class="sub">${esc(g.judge.verdict)}</div>` : "") : "–"}</td>
+        <td class="num">${c.in_scope ? `${s.found}/${s.total}<div class="sub">${s.quoted} quoted</div>` : "–"}</td>`;
+    }
+    const tag = c.in_scope ? "" : '<span class="tag">out of scope</span>';
+    return `<tr class="case ${active === c.id ? "active" : ""}" data-id="${c.id}">
+      <td>${c.id}</td>
+      <td><div class="q">${esc(c.question)}${tag}</div></td>
+      ${cells}
+    </tr>`;
+  }).join("");
+
+  const done = cases.map((c) => [c, results[c.id]]).filter(([, r]) => r && r !== "pending" && r.answer && !r.answer.error);
+  const inScope = done.filter(([c]) => c.in_scope).map(([, r]) => r);
+  const outScope = done.filter(([c]) => !c.in_scope).map(([, r]) => r);
+  const n = inScope.length;
+  const frac = (k, total) => total ? `${k}/${total}` : "–";
+  const count = (f) => inScope.filter(f).length;
+  $("t-status").textContent = frac(count((r) => r.answer.status === "answered"), n) + " answered";
+  $("t-sources").textContent = frac(count((r) => r.answer.sources.length > 0), n);
+  $("t-quotes").textContent = frac(count((r) => r.answer.quotes.length > 0), n);
+  $("t-verbatim").textContent = frac(count((r) => r.answer.grounding?.quotes_verified), n);
+  $("t-meaning").textContent = frac(count((r) => r.answer.grounding?.grounded), n);
+  const found = inScope.reduce((t, r) => t + r.score.found, 0);
+  const total = inScope.reduce((t, r) => t + r.score.total, 0);
+  const quoted = inScope.reduce((t, r) => t + r.score.quoted, 0);
+  $("t-facts").textContent = total ? `${found}/${total} (${quoted} quoted)` : "–";
+  $("t-unknown").textContent = frac(outScope.filter((r) => r.score.status_ok && r.answer.clarification && r.answer.attempts === 0).length, outScope.length);
+  document.querySelectorAll("tr.case").forEach((tr) => tr.onclick = () => openCase(tr.dataset.id));
+}
+
+function openCase(id) {
+  const kase = cases.find((c) => c.id === id);
+  active = id;
+  $("question").value = kase.question;
+  renderExpect(kase);
+  renderCases();
+  const r = results[id];
+  if (r && r !== "pending") renderAnswer(r, kase);
+  else if (!busy) runCase(id);
+}
+
+async function runCase(id) {
+  const kase = cases.find((c) => c.id === id);
+  results[id] = "pending";
+  active = id;
+  renderExpect(kase);
+  renderAnswer(null);
+  renderCases();
+  let resp;
+  try {
+    resp = await api("/api/ask", { case_id: id, ...settings() });
+  } catch (e) {
+    resp = { error: String(e) };
+  }
+  results[id] = resp;
+  if (active === id) renderAnswer(resp, kase);
+  renderCases();
+}
+
+$("ask").onclick = async () => {
+  const question = $("question").value.trim();
+  const kase = cases.find((c) => c.question === question);
+  setBusy(true);
+  try {
+    if (kase) { await runCase(kase.id); return; }
+    active = null;
+    renderExpect(null);
+    renderCases();
+    renderAnswer(null);
+    renderAnswer(await api("/api/ask", { question, ...settings() }), null);
+  } catch (e) {
+    renderAnswer({ error: String(e) }, null);
+  } finally {
+    setBusy(false);
+  }
+};
+
+$("run-all").onclick = async () => {
+  setBusy(true);
+  try {
+    for (const c of cases) {
+      $("question").value = c.question;
+      await runCase(c.id);
+    }
+  } finally {
+    setBusy(false);
+  }
+};
+
+// Changing a knob makes the old results stale.
+function knobsChanged() {
+  for (const k of Object.keys(results)) if (results[k] !== "pending") delete results[k];
+  renderCases();
+}
+$("threshold_range").oninput = () => { $("threshold").value = $("threshold_range").value; knobsChanged(); };
+$("threshold").oninput = () => { $("threshold_range").value = $("threshold").value; knobsChanged(); };
+for (const id of ["k_before", "k_after", "judge"]) $(id).onchange = knobsChanged;
+
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("ask").click();
+});
+
+(async () => {
+  const cfg = await api("/api/config");
+  $("config").textContent = `model ${cfg.model} · ${cfg.documents} documents → ${cfg.chunks} chunks · embedder ${cfg.embedder} · up to ${cfg.max_attempts} attempts per answer · quotes ≥ ${cfg.min_quote_chars} characters`;
+  const d = cfg.defaults;
+  for (let k = 1; k <= cfg.max_k_before; k++) $("k_before").add(new Option(String(k), String(k), false, k === d.k_before));
+  for (let k = 1; k <= cfg.max_k_after; k++) $("k_after").add(new Option(String(k), String(k), false, k === d.k_after));
+  $("threshold").value = d.threshold.toFixed(2);
+  $("threshold_range").value = d.threshold;
+  $("judge").checked = d.judge;
+  cases = await api("/api/cases");
+  renderCases();
+})();
+</script>
+</body>
+</html>
