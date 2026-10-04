@@ -1,1 +1,384 @@
-PENDING
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>First RAG Query</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --chip-bg: #eef0ff;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --ok-bg: rgba(22, 163, 74, 0.12);
+    --err: #dc2626;
+    --err-bg: rgba(220, 38, 38, 0.1);
+    --plain: #d97706;
+    --rag: #2563eb;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --chip-bg: #262a40;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --ok-bg: rgba(34, 197, 94, 0.14);
+      --err: #f87171;
+      --err-bg: rgba(248, 113, 113, 0.12);
+      --plain: #fbbf24;
+      --rag: #60a5fa;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2rem;
+  }
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.95rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    min-width: 0;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .card h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
+
+  textarea, select {
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.55rem 0.7rem;
+  }
+  textarea { width: 100%; min-height: 4.2rem; resize: vertical; }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.7rem; flex-wrap: wrap; }
+  .actions label { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; }
+  .hint { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .link { background: none; color: var(--primary); padding: 0; font-size: 0.85rem; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 760px) { .compare { grid-template-columns: 1fr; } }
+  .answer { border-top: 4px solid var(--border); }
+  .answer.plain { border-top-color: var(--plain); }
+  .answer.rag { border-top-color: var(--rag); }
+  .answer h3 { margin: 0 0 0.2rem; font-size: 1rem; }
+  .meta { color: var(--text-muted); font-size: 0.78rem; margin-bottom: 0.7rem; }
+  .text { white-space: pre-wrap; line-height: 1.5; font-size: 0.93rem; overflow-wrap: anywhere; }
+  .text .cite { color: var(--rag); font-weight: 700; }
+  .error { color: var(--err); font-weight: 600; }
+  .empty { color: var(--text-muted); font-style: italic; }
+  .pending { color: var(--text-muted); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.8rem; }
+  .fact { font-size: 0.75rem; border-radius: 999px; padding: 0.15rem 0.55rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .fact.yes { background: var(--ok-bg); color: var(--ok); }
+  .fact.no { background: var(--err-bg); color: var(--err); }
+
+  details { margin-top: 0.8rem; }
+  summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+  .src { background: var(--code-bg); border-radius: 9px; padding: 0.5rem 0.65rem; margin-top: 0.45rem; font-size: 0.8rem; }
+  .src.expected { outline: 2px solid var(--ok); }
+  .src .head { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+  .src .rank { font-weight: 700; color: var(--rag); }
+  .src .score { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .src pre, .prompt pre { white-space: pre-wrap; margin: 0.4rem 0 0; font-size: 0.76rem; max-height: 14rem; overflow: auto; }
+  .prompt pre { background: var(--code-bg); border-radius: 9px; padding: 0.6rem; max-height: 22rem; }
+
+  .expect { background: var(--chip-bg); border-radius: 10px; padding: 0.65rem 0.8rem; font-size: 0.88rem; margin-bottom: 1rem; }
+  .expect b { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 0.2rem; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  th, td { text-align: left; padding: 0.5rem 0.45rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.case { cursor: pointer; }
+  tr.case:hover td { background: var(--code-bg); }
+  tr.case.active td { background: var(--chip-bg); }
+  .q { font-weight: 600; }
+  .sub { color: var(--text-muted); font-size: 0.78rem; margin-top: 0.2rem; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .bad { color: var(--err); font-weight: 700; }
+  tfoot td { font-weight: 700; border-bottom: none; }
+  .bar { display: inline-block; height: 0.5rem; border-radius: 4px; vertical-align: middle; margin-right: 0.35rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>First RAG Query</h1>
+  <p>question → relevant chunks → chunks + question → LLM, next to the same model without them</p>
+  <p class="hint" id="config">loading…</p>
+</header>
+
+<div class="card">
+  <div class="card-head"><h2>Ask</h2><span class="hint">or pick a control question below</span></div>
+  <textarea id="question" placeholder="e.g. Which port does a deployed lesson get?"></textarea>
+  <div class="actions">
+    <label>chunks in context
+      <select id="k"></select>
+    </label>
+    <button class="primary" id="ask">Ask both modes</button>
+  </div>
+</div>
+
+<div id="expect"></div>
+
+<div class="compare">
+  <div class="card answer plain" id="plain">
+    <h3>Without RAG</h3>
+    <div class="meta">the question alone</div>
+    <div class="text empty">Ask something to compare.</div>
+  </div>
+  <div class="card answer rag" id="rag">
+    <h3>With RAG</h3>
+    <div class="meta">retrieved chunks + the question</div>
+    <div class="text empty">Ask something to compare.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Control questions</h2>
+    <button class="primary" id="run-all">Run all 10</button>
+  </div>
+  <div class="hint" style="margin-bottom:0.6rem">
+    Facts: how many of the expected facts the answer states. Source: the expected file is among the retrieved chunks. Cited: the answer cites a chunk from it. Click a row to see both answers.
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Question · expected · sources</th><th>Facts without RAG</th><th>Facts with RAG</th><th>Source</th><th>Cited</th></tr>
+      </thead>
+      <tbody id="cases"></tbody>
+      <tfoot><tr><td></td><td>Average</td><td class="num" id="avg-plain">–</td><td class="num" id="avg-rag">–</td><td class="num" id="avg-src">–</td><td class="num" id="avg-cited">–</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let cases = [];
+const results = {};
+let active = null;
+let busy = false;
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  return res.json();
+}
+
+function setBusy(on) {
+  busy = on;
+  $("ask").disabled = on;
+  $("run-all").disabled = on;
+}
+
+function renderText(answer) {
+  const html = esc(answer.text);
+  return answer.mode === "rag" ? html.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, '<span class="cite">[$1]</span>') : html;
+}
+
+function renderAnswer(el, answer, kase) {
+  const head = el.querySelector("h3").outerHTML;
+  if (!answer) {
+    el.innerHTML = head + '<div class="meta">&nbsp;</div><div class="text pending">thinking…</div>';
+    return;
+  }
+  const u = answer.usage || {};
+  let html = head + `<div class="meta">${answer.mode === "rag" ? `retrieval ${answer.retrieve_ms} ms · ` : ""}LLM ${answer.llm_ms} ms · ${u.prompt_tokens ?? 0} prompt + ${u.completion_tokens ?? 0} completion tokens</div>`;
+  html += answer.error ? `<div class="error">${esc(answer.error)}</div>` : `<div class="text">${renderText(answer)}</div>`;
+  if (answer.score) {
+    html += '<div class="facts">' + answer.score.facts.map((f) => `<span class="fact ${f.found ? "yes" : "no"}">${f.found ? "✓" : "✗"} ${esc(f.fact)}</span>`).join("") + "</div>";
+  }
+  if (answer.sources && answer.sources.length) {
+    const expected = new Set((kase?.sources || []).map((s) => s.file));
+    html += `<details open><summary>Retrieved chunks (${answer.sources.length})</summary>` +
+      answer.sources.map((h) => `<div class="src ${expected.has(h.source) ? "expected" : ""}">
+        <div class="head"><span class="rank">[${h.rank}]</span><span class="score">${h.score.toFixed(3)}</span><b>${esc(h.source)}</b><span>${esc(h.section)}</span><span class="score">≈${h.tokens} tok</span></div>
+        <details><summary>text</summary><pre>${esc(h.text)}</pre></details>
+      </div>`).join("") + "</details>";
+  }
+  if (answer.messages && answer.messages.length) {
+    html += `<details class="prompt"><summary>Prompt sent to the model</summary>` +
+      answer.messages.map((m) => `<pre><b>${esc(m.role)}</b>\n${esc(m.content)}</pre>`).join("") + "</details>";
+  }
+  el.innerHTML = html;
+}
+
+function renderExpect(kase) {
+  if (!kase) { $("expect").innerHTML = ""; return; }
+  $("expect").innerHTML = `<div class="expect"><b>Expected answer</b>${esc(kase.expect)}
+    <div class="sub">Sources: ${kase.sources.map((s) => `${esc(s.file)} — ${esc(s.section)}`).join("; ")}</div></div>`;
+}
+
+function show(resp, kase) {
+  if (resp.error) {
+    renderAnswer($("plain"), { mode: "plain", error: resp.error, usage: {}, llm_ms: 0 });
+    renderAnswer($("rag"), { mode: "rag", error: resp.error, usage: {}, llm_ms: 0, retrieve_ms: 0 });
+    return;
+  }
+  const by = Object.fromEntries(resp.answers.map((a) => [a.mode, a]));
+  renderAnswer($("plain"), by.plain, kase);
+  renderAnswer($("rag"), by.rag, kase);
+}
+
+function pct(x) { return Math.round(x * 100) + "%"; }
+
+function factCell(score, color) {
+  if (!score) return "–";
+  const w = Math.round(score.fact_score * 48);
+  return `<span class="bar" style="width:${w}px;background:${color}"></span>${score.found}/${score.total}`;
+}
+
+function flag(v) { return v == null ? "–" : v ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>'; }
+
+function renderCases() {
+  $("cases").innerHTML = cases.map((c) => {
+    const r = results[c.id];
+    const plain = r?.answers?.find((a) => a.mode === "plain")?.score;
+    const rag = r?.answers?.find((a) => a.mode === "rag")?.score;
+    const status = r === "pending" ? '<span class="pending">…</span>' : null;
+    return `<tr class="case ${active === c.id ? "active" : ""}" data-id="${c.id}">
+      <td>${c.id}</td>
+      <td><div class="q">${esc(c.question)}</div><div class="sub">${esc(c.expect)}</div><div class="sub">📄 ${c.sources.map((s) => esc(s.file) + " — " + esc(s.section.split(" › ").pop())).join("; ")}</div></td>
+      <td class="num">${status ?? factCell(plain, "var(--plain)")}</td>
+      <td class="num">${status ?? factCell(rag, "var(--rag)")}</td>
+      <td class="num">${status ?? flag(rag?.source_retrieved)}</td>
+      <td class="num">${status ?? flag(rag?.cited_expected)}</td>
+    </tr>`;
+  }).join("");
+  const done = cases.map((c) => results[c.id]).filter((r) => r && r !== "pending" && !r.error);
+  const avg = (f) => done.length ? done.reduce((s, r) => s + f(r), 0) / done.length : null;
+  const score = (r, mode) => r.answers.find((a) => a.mode === mode)?.score;
+  const a = {
+    plain: avg((r) => score(r, "plain")?.fact_score ?? 0),
+    rag: avg((r) => score(r, "rag")?.fact_score ?? 0),
+    src: avg((r) => score(r, "rag")?.source_retrieved ? 1 : 0),
+    cited: avg((r) => score(r, "rag")?.cited_expected ? 1 : 0),
+  };
+  $("avg-plain").textContent = a.plain == null ? "–" : pct(a.plain);
+  $("avg-rag").textContent = a.rag == null ? "–" : pct(a.rag);
+  $("avg-src").textContent = a.src == null ? "–" : pct(a.src);
+  $("avg-cited").textContent = a.cited == null ? "–" : pct(a.cited);
+  document.querySelectorAll("tr.case").forEach((tr) => tr.onclick = () => openCase(tr.dataset.id));
+}
+
+function openCase(id) {
+  const kase = cases.find((c) => c.id === id);
+  active = id;
+  $("question").value = kase.question;
+  renderExpect(kase);
+  renderCases();
+  const r = results[id];
+  if (r && r !== "pending") show(r, kase);
+  else if (!busy) runCase(id);
+}
+
+async function runCase(id, quiet) {
+  const kase = cases.find((c) => c.id === id);
+  results[id] = "pending";
+  if (!quiet) { active = id; renderExpect(kase); renderAnswer($("plain")); renderAnswer($("rag")); }
+  renderCases();
+  let resp;
+  try {
+    resp = await api("/api/ask", { case_id: id, k: Number($("k").value) });
+  } catch (e) {
+    resp = { error: String(e), answers: [] };
+  }
+  results[id] = resp;
+  if (active === id) show(resp, kase);
+  renderCases();
+}
+
+$("ask").onclick = async () => {
+  const question = $("question").value.trim();
+  const kase = cases.find((c) => c.question === question);
+  setBusy(true);
+  try {
+    if (kase) { await runCase(kase.id); return; }
+    active = null;
+    renderExpect(null);
+    renderCases();
+    renderAnswer($("plain"));
+    renderAnswer($("rag"));
+    const resp = await api("/api/ask", { question, k: Number($("k").value) });
+    show(resp, null);
+  } catch (e) {
+    show({ error: String(e) }, null);
+  } finally {
+    setBusy(false);
+  }
+};
+
+$("run-all").onclick = async () => {
+  setBusy(true);
+  try {
+    for (const c of cases) {
+      active = c.id;
+      $("question").value = c.question;
+      await runCase(c.id);
+    }
+  } finally {
+    setBusy(false);
+  }
+};
+
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("ask").click();
+});
+
+(async () => {
+  const cfg = await api("/api/config");
+  $("config").textContent = `model ${cfg.model} · ${cfg.documents} documents → ${cfg.chunks} structural chunks · embedder ${cfg.embedder}`;
+  for (let k = 1; k <= cfg.max_top_k; k++) {
+    const opt = new Option(String(k), String(k), false, k === cfg.top_k);
+    $("k").add(opt);
+  }
+  cases = await api("/api/cases");
+  renderCases();
+})();
+</script>
+</body>
+</html>
