@@ -30,7 +30,7 @@
 
 ## Demo
 
-_(video to be added after recording)_
+https://github.com/user-attachments/assets/f6bb0d54-b2e1-4893-9c2f-ff9a65ff5b04
 
 ## What this is
 
