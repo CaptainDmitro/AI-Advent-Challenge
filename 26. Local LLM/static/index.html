@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local LLM</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --code-bg: #f0f1f4;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+    --bubble-user: #4f46e5;
+    --bubble-user-text: #ffffff;
+    --bubble-assistant: #ffffff;
+    --ok: #059669;
+    --bad: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --code-bg: #262a33;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+      --bubble-user: #6366f1;
+      --bubble-user-text: #ffffff;
+      --bubble-assistant: #1c1f26;
+      --ok: #34d399;
+      --bad: #f87171;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header { text-align: center; margin-bottom: 1.1rem; flex: none; }
+  h1 {
+    font-size: 1.7rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    color: var(--text-muted);
+    margin: 0 0 0.7rem;
+    font-size: 0.98rem;
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.3rem 0.8rem;
+    max-width: 100%;
+  }
+  .status .dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex: none;
+  }
+  .status.ok .dot { background: var(--ok); }
+  .status.bad .dot { background: var(--bad); }
+  .status.bad { color: var(--bad); }
+  .status button {
+    background: transparent;
+    color: inherit;
+    border: none;
+    padding: 0 0.2rem;
+    font-size: 0.9rem;
+  }
+
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    min-height: 0;
+  }
+
+  .empty-state {
+    margin: auto;
+    color: var(--text-muted);
+    text-align: center;
+    font-size: 0.95rem;
+  }
+
+  .bubble-row { display: flex; flex-direction: column; }
+  .bubble-row.user { align-items: flex-end; }
+  .bubble-row.assistant { align-items: flex-start; }
+
+  .bubble {
+    max-width: 78%;
+    padding: 0.65rem 0.95rem;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+  .bubble-row.user .bubble {
+    background: var(--bubble-user);
+    color: var(--bubble-user-text);
+    border-bottom-right-radius: 4px;
+  }
+  .bubble-row.assistant .bubble {
+    background: var(--bubble-assistant);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble-row.assistant .bubble.error { color: var(--bad); }
+  .bubble-row.assistant .bubble.loading {
+    color: var(--text-muted);
+    font-style: italic;
+    animation: pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+    padding: 0 0.3rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .meta .check-ok { color: var(--ok); font-weight: 600; }
+  .meta .check-bad { color: var(--bad); font-weight: 600; }
+
+  .bubble code {
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.88em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .bubble pre {
+    background: var(--code-bg);
+    padding: 0.75em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.4em 0;
+    white-space: pre;
+  }
+  .bubble pre code { background: none; padding: 0; }
+  .bubble h4, .bubble h5, .bubble h6 {
+    margin: 0.6em 0 0.3em;
+    font-size: 1em;
+    line-height: 1.3;
+    font-weight: 700;
+  }
+  .bubble h4:first-child, .bubble h5:first-child, .bubble h6:first-child { margin-top: 0; }
+
+  .presets {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.9rem;
+  }
+  .presets button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+  }
+  .presets button:hover:not(:disabled) { border-color: var(--primary); }
+  .presets button b { color: var(--primary); font-weight: 700; }
+
+  .composer {
+    flex: none;
+    margin-top: 0.6rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 0.9rem 1rem;
+  }
+
+  textarea#prompt {
+    width: 100%;
+    height: 3rem;
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+  }
+  textarea#prompt::placeholder { color: var(--text-muted); }
+
+  .settings-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1.2rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .setting {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  select#model {
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.3rem 0.5rem;
+    max-width: 14rem;
+  }
+  .setting input[type="range"] { width: 8rem; accent-color: var(--primary); }
+  .setting .range-label { width: 1.8rem; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .composer-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+  }
+  .composer-footer .hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  .composer-footer .actions { display: flex; gap: 0.6rem; }
+
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  button#send {
+    background: var(--primary);
+    color: #fff;
+  }
+  button#send:hover:not(:disabled) { background: var(--primary-hover); }
+
+  button#reset {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  button#reset:hover:not(:disabled) { color: var(--text); border-color: var(--text-muted); }
+
+  @media (max-width: 520px) {
+    body { padding: 1rem 0.75rem; }
+    .bubble { max-width: 92%; }
+    .composer-footer .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Local LLM</h1>
+    <p>A chat with a model running on my own Mac through Ollama. No API key, no cloud LLM.</p>
+    <div class="status" id="status"><span class="dot"></span><span id="status-text">Connecting to Ollama…</span><button type="button" id="status-refresh" title="Check again">↻</button></div>
+  </header>
+
+  <div class="chat" id="chat">
+    <div class="empty-state" id="empty-state">Send a message, or try one of the three requests below.</div>
+  </div>
+
+  <div class="presets" id="presets">
+    <button type="button" data-level="0"><b>easy</b> · Столица Франции</button>
+    <button type="button" data-level="1"><b>medium</b> · TCP vs UDP</button>
+    <button type="button" data-level="2"><b>hard</b> · Задача про поезда</button>
+  </div>
+
+  <div class="composer">
+    <textarea id="prompt" placeholder="Ask the local model something..."></textarea>
+
+    <div class="settings-row">
+      <label class="setting">Model
+        <select id="model"><option value="">loading…</option></select>
+      </label>
+      <label class="setting">Temperature
+        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+        <span class="range-label" id="temperature-value">0.7</span>
+      </label>
+    </div>
+
+    <div class="composer-footer">
+      <span class="hint">Enter to send &middot; Shift+Enter for a new line</span>
+      <div class="actions">
+        <button id="reset" type="button">Reset</button>
+        <button id="send" type="button">Send</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Three requests of growing difficulty. Each has one answer we can check for:
+// the hard one is 11:36 (by 10:00 the first train has covered 60 km, 240 km
+// remain at a closing speed of 150 km/h → 1.6 h).
+const PRESETS = [
+  {
+    prompt: 'Какая столица Франции? Ответь одним словом.',
+    expected: ['Париж'],
+  },
+  {
+    prompt: 'Объясни в трёх предложениях, чем TCP отличается от UDP, и назови по одному протоколу или сервису, который работает поверх каждого из них.',
+    expected: ['TCP', 'UDP'],
+  },
+  {
+    prompt: 'Поезд выехал из города A в 9:00 со скоростью 60 км/ч. Второй поезд выехал из города B ему навстречу в 10:00 со скоростью 90 км/ч. Расстояние между городами 300 км. Во сколько они встретятся? Реши по шагам, а в последней строке напиши только время в формате ЧЧ:ММ.',
+    expected: ['11:36'],
+  },
+];
+
+const chatEl = document.getElementById('chat');
+const promptEl = document.getElementById('prompt');
+const sendButton = document.getElementById('send');
+const resetButton = document.getElementById('reset');
+const modelEl = document.getElementById('model');
+const temperatureEl = document.getElementById('temperature');
+const temperatureValueEl = document.getElementById('temperature-value');
+const statusEl = document.getElementById('status');
+const statusTextEl = document.getElementById('status-text');
+const presetsEl = document.getElementById('presets');
+
+temperatureEl.addEventListener('input', () => {
+  temperatureValueEl.textContent = parseFloat(temperatureEl.value).toFixed(1);
+});
+
+async function refreshStatus() {
+  statusEl.className = 'status';
+  statusTextEl.textContent = 'Connecting to Ollama…';
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.error) {
+      statusEl.classList.add('bad');
+      statusTextEl.textContent = data.error;
+    } else {
+      statusEl.classList.add('ok');
+      statusTextEl.textContent = `Ollama ${data.version} · ${data.host} · ${data.models.length} model(s)`;
+    }
+    fillModels(data.models, data.default_model);
+  } catch (e) {
+    statusEl.classList.add('bad');
+    statusTextEl.textContent = `Server unreachable: ${e}`;
+  }
+}
+
+// The picker lists what Ollama actually has pulled. The default model stays
+// selectable even if it isn't pulled yet, so the error from Ollama
+// ("try pulling it first") shows up in the chat instead of a silent fallback.
+function fillModels(models, defaultModel) {
+  const current = modelEl.value || defaultModel;
+  const names = models.includes(defaultModel) ? models : [defaultModel, ...models];
+  modelEl.innerHTML = '';
+  for (const name of names) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = models.includes(name) ? name : `${name} (not pulled)`;
+    modelEl.appendChild(option);
+  }
+  modelEl.value = names.includes(current) ? current : defaultModel;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Minimal, dependency-free markdown covering what LLM replies typically use:
+// fenced/inline code, headings, and bold/italic.
+function renderMarkdown(raw) {
+  const codeBlocks = [];
+  let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return `\u0000${codeBlocks.length - 1}\u0000`;
+  });
+
+  text = escapeHtml(text);
+  text = text.replace(/^(#{1,6})\s+(.*)$/gm, (_, hashes, content) => {
+    const level = Math.min(hashes.length, 3) + 3;
+    return `<h${level}>${content}</h${level}>`;
+  });
+  text = text.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+
+  return text.replace(/\u0000(\d+)\u0000/g, (_, i) => codeBlocks[i]);
+}
+
+function clearEmptyState() {
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+}
+
+function addRow(role) {
+  clearEmptyState();
+  const row = document.createElement('div');
+  row.className = `bubble-row ${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  row.appendChild(bubble);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return { row, bubble };
+}
+
+function addMeta(row, html) {
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = html;
+  row.appendChild(meta);
+}
+
+function statsLine(model, s) {
+  return `${escapeHtml(model)} · ${s.prompt_tokens} → ${s.completion_tokens} tok · ` +
+    `${s.tokens_per_sec.toFixed(1)} tok/s · ${s.total_secs.toFixed(2)} s ` +
+    `(model load ${s.load_secs.toFixed(2)} s)`;
+}
+
+function checkLine(reply, expected) {
+  const lower = reply.toLowerCase();
+  const missing = expected.filter((k) => !lower.includes(k.toLowerCase()));
+  return missing.length === 0
+    ? `<span class="check-ok">✓ contains ${escapeHtml(expected.join(', '))}</span>`
+    : `<span class="check-bad">✗ expected ${escapeHtml(missing.join(', '))}</span>`;
+}
+
+function setBusy(busy) {
+  sendButton.disabled = busy;
+  presetsEl.querySelectorAll('button').forEach((b) => { b.disabled = busy; });
+}
+
+async function send(message, expected) {
+  setBusy(true);
+  addRow('user').bubble.textContent = message;
+  const { row, bubble } = addRow('assistant');
+  bubble.classList.add('loading');
+  bubble.textContent = 'Thinking locally…';
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        model: modelEl.value,
+        temperature: parseFloat(temperatureEl.value),
+      }),
+    });
+    bubble.classList.remove('loading');
+    if (!res.ok) {
+      bubble.classList.add('error');
+      bubble.textContent = `Error: request failed with status ${res.status}`;
+      return;
+    }
+    const data = await res.json();
+    if (data.error) {
+      bubble.classList.add('error');
+      bubble.textContent = data.error;
+      return;
+    }
+    bubble.innerHTML = renderMarkdown(data.reply);
+    let meta = statsLine(data.model, data.stats);
+    if (expected) meta += ` · ${checkLine(data.reply, expected)}`;
+    addMeta(row, meta);
+  } catch (e) {
+    bubble.classList.remove('loading');
+    bubble.classList.add('error');
+    bubble.textContent = `Error: ${e}`;
+  } finally {
+    chatEl.scrollTop = chatEl.scrollHeight;
+    setBusy(false);
+    promptEl.focus();
+  }
+}
+
+function sendTyped() {
+  const message = promptEl.value.trim();
+  if (!message || sendButton.disabled) return;
+  promptEl.value = '';
+  send(message);
+}
+
+sendButton.addEventListener('click', sendTyped);
+promptEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendTyped();
+  }
+});
+
+presetsEl.addEventListener('click', (e) => {
+  const button = e.target.closest('button[data-level]');
+  if (!button || button.disabled) return;
+  const preset = PRESETS[Number(button.dataset.level)];
+  send(preset.prompt, preset.expected);
+});
+
+resetButton.addEventListener('click', async () => {
+  resetButton.disabled = true;
+  try {
+    await fetch('/api/reset', { method: 'POST' });
+    chatEl.innerHTML = '';
+    const restored = document.createElement('div');
+    restored.className = 'empty-state';
+    restored.id = 'empty-state';
+    restored.textContent = 'Conversation reset. Send a message to start again.';
+    chatEl.appendChild(restored);
+  } finally {
+    resetButton.disabled = false;
+    promptEl.focus();
+  }
+});
+
+document.getElementById('status-refresh').addEventListener('click', refreshStatus);
+
+refreshStatus();
+promptEl.focus();
+</script>
+</body>
+</html>
