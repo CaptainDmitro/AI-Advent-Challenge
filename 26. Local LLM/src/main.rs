@@ -153,7 +153,13 @@ impl AppState {
         let response = request
             .send()
             .await
-            .map_err(|e| format!("Can't reach Ollama at {}: {e}. Is `ollama serve` running?", self.host))?;
+            .map_err(|e| {
+                format!(
+                    "Can't reach Ollama at {}: {e}. Is `ollama serve` running \
+                     (or, on the VDS, is `./tunnel.sh` up on the Mac)?",
+                    self.host
+                )
+            })?;
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         if !status.is_success() {
