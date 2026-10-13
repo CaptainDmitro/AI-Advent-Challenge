@@ -171,11 +171,38 @@ No API key: the model runs locally.
 
 ## Deploy
 
-As the newest web-app lesson, the pipeline deploys it to
-`http://<VDS host>:4026` on push to `master` (see
-[`../DEPLOYMENT.md`](../DEPLOYMENT.md)). The VDS has no Ollama, so the page
-comes up with a red "Can't reach Ollama" status. The lesson is meant to run on
-your own machine with `cargo run`.
+The pipeline deploys it to `http://<VDS host>:4026` on push to `master`, as the
+newest web-app lesson (see [`../DEPLOYMENT.md`](../DEPLOYMENT.md)). The VDS
+has no GPU and no Ollama. The deployed chat uses **the Ollama on your Mac**
+through a reverse SSH tunnel:
+
+```
+browser ──▶ VDS :4026 (this app) ──▶ VDS 127.0.0.1:11434 ══ ssh -R ══▶ Mac 127.0.0.1:11434 (ollama serve) ──▶ qwen2.5:3b
+```
+
+The Mac connects out to the VDS, so NAT and home routers don't matter. On the
+VDS the forwarded port is bound to `127.0.0.1` only, so Ollama (which has no
+auth) is never reachable from the internet, only through the app. The app's
+default `OLLAMA_HOST` is already `http://localhost:11434`, so neither the app
+nor the pipeline needs any extra config.
+
+On the Mac, with Ollama running:
+
+```bash
+./tunnel.sh <user>@<vds-host>
+```
+
+It reconnects by itself after sleep or a network change. Check from the VDS:
+
+```bash
+ssh <user>@<vds-host> curl -s localhost:11434/api/version
+```
+
+While the tunnel is down, the page shows a red "Can't reach Ollama" status.
+↻ turns it green once the tunnel is back, with no redeploy needed. Keep the
+Mac awake while it serves (`caffeinate -i ./tunnel.sh …`). Anyone who opens
+the page uses your Mac's model and shares the one in-memory conversation, as
+in lesson 06.
 
 ## Conclusion
 
