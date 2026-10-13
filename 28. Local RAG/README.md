@@ -41,10 +41,17 @@ hosted API. Next to it, the same prompt goes to a cloud model, so the two can
 be compared on lesson 22's 10 control questions.
 
 ```
-                         ┌────────── on this machine ───────────────────────────────────────────────────────┐
- question ──▶ embed ──▶ index (lesson 21/22, in memory) ──▶ top-k chunks ──▶ prompt ──▶ Ollama: qwen2.5:3b ──▶ answer
-                                                                              │
-                                                                              └──▶ cloud model (optional) ──▶ answer
+ on this machine (or on the VDS + the Mac's Ollama through the tunnel)
+ ─────────────────────────────────────────────────────────────────────
+ question ─▶ embed ─▶ index (lessons 21/22, in memory) ─▶ top-k chunks
+                                                              │
+                                   prompt: [n] file — section … Question: …
+                                                              │
+                                  ┌───────────────────────────┴──────────────┐
+                                  ▼                                          ▼
+                     Ollama: qwen2.5:3b (local)              cloud model (optional)
+                                  ▼                                          ▼
+                               answer                                     answer
 ```
 
 - **Index from week 6, unchanged.** [`src/index.rs`](./src/index.rs) is lesson
@@ -112,7 +119,69 @@ settings.
 
 ### Results
 
-_(to fill in after the measured run)_
+Measured on the deployed app (`http://<VDS host>:4028`). Retrieval and the
+cloud calls ran on the VDS. Generation ran on an M-series MacBook (16 GB)
+through the tunnel: `qwen2.5:3b` (Q4_K_M) on Ollama 0.40.3, against
+`deepseek-v4-flash`. All 10 control questions, top-5 chunks, 3 runs per
+question per model, at temperature 0 and at 0.7. Retrieval found the
+expected source for 10/10 questions in under 1 ms, and both models got the
+same ≈1.46k-token prompt.
+
+| | | local `qwen2.5:3b`<br>t = 0 | cloud `deepseek-v4-flash`<br>t = 0 | local<br>t = 0.7 | cloud<br>t = 0.7 |
+|---|---|---|---|---|---|
+| **Quality** | expected facts stated | **83%** | **97%** | 82% | 98% |
+| | answers citing the expected source `[n]` | **0/30** | **30/30** | 0/30 | 30/30 |
+| | answers in the question's language (English) | 30/30 | **20/30** | 30/30 | 20/30 |
+| **Speed** | time per answer | 3.2 s | 2.1 s | 2.3 s | 1.9 s |
+| | answer length, tokens | 83 | 268 | 80 | 232 |
+| | completion tokens / wall-clock second | 31 | 123 | 36 | 115 |
+| | Ollama: generation · prefill · load | 43 tok/s · 1.1 s · 0.08 s | – | 44 tok/s · 0.3 s · 0.01 s | – |
+| **Stability** | failed calls | 0/30 | 0/30 | 0/30 | 0/30 |
+| | questions with one answer across 3 runs | **6/10** | **0/10** | 1/10 | 0/10 |
+| | questions whose fact score changed between runs | **0/10** | 1/10 | 3/10 | 0/10 |
+
+Per question (facts found in each of the 3 runs, at t = 0):
+
+| # | local | cloud | | # | local | cloud |
+|---|---|---|---|---|---|---|
+| q01 | 2 2 2 / 2 | 2 2 2 / 2 | | q06 | 1 1 1 / 2 | 2 2 2 / 2 |
+| q02 | 3 3 3 / 3 | 3 3 3 / 3 | | q07 | 4 4 4 / 4 | 4 4 3 / 4 |
+| q03 | 1 1 1 / 1 | 1 1 1 / 1 | | q08 | 4 4 4 / 5 | 4 4 4 / 5 |
+| q04 | 2 2 2 / 2 | 2 2 2 / 2 | | q09 | 3 3 3 / 3 | 3 3 3 / 3 |
+| q05 | 2 2 2 / 3 | 3 3 3 / 3 | | q10 | 1 1 1 / 3 | 3 3 3 / 3 |
+
+What this shows:
+
+- **Quality: the local model reads the context well but ignores the format.**
+  With the same five chunks, the 3B model states 83% of the expected facts,
+  against 97% for the cloud model. It loses them mostly by paraphrasing.
+  q10 says "a deterministic keyword pre-check" instead of naming
+  `forbidden_terms`, and q06 says "non-blocking" without the reason
+  (rustfmt). q08 gives only the fixed-window sizes. But it **never** writes
+  the `[n]` citations the rules ask for: 0 of 60 answers. The cloud model
+  cites every time. The cloud model, though, answers an English question
+  in Russian, Ukrainian or Chinese a third of the time, against the "in the
+  language of the question" rule. The local model never does.
+- **Speed: the cloud is faster per answer, the local model writes less.**
+  The local answer takes 2.3–3.2 s: ≈ 0.3–1.1 s to read the 1.46k-token
+  prompt, then ≈ 43 tok/s. The model stays loaded, so load time is ~0. The
+  cloud model streams 3–4× more tokens per second but writes 3× longer
+  answers, so per answer it is only 1.2–1.5× faster. Retrieval is shared by
+  both models and takes under 1 ms.
+- **Stability: the local model is the more predictable one.** At t = 0 it
+  gives the same text on 6 of 10 questions, and the same facts on all 10.
+  The cloud model never repeats its text, even at temperature 0, though its
+  facts barely move. At t = 0.7 the local model starts to drift: q09 and q10
+  swing between 1/3 and 3/3. Neither side failed a single call.
+
+So the fully local pipeline works and needs nothing but the Mac. Its answers
+are short and stable: every expected fact on 6 of 10 questions, most of them
+on 2 more. What it doesn't give is citations. A pipeline that has to show its
+sources (lessons 24–25) would need a larger local model, or the code would
+have to attach the sources itself instead of asking the model to.
+
+To reproduce, open the page, set runs to 3, and click **Run all 10** (or run
+`cargo run -- eval --runs 3`).
 
 ### Verification
 
