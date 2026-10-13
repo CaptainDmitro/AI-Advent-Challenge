@@ -30,31 +30,31 @@ _(video to be added)_
 
 ## What this is
 
-Every lesson so far has called a hosted model. This one runs the model on
-the machine itself: [Ollama](https://ollama.com) serving **Qwen 2.5 3B**
-(`qwen2.5:3b`, 1.9 GB, Q4_K_M). It needs no API key and nothing leaves
-`localhost`. The same model is reached three ways:
+Lesson 06's chat, but the model runs on this machine:
+[Ollama](https://ollama.com) serving **Qwen 2.5 3B** (`qwen2.5:3b`, 1.9 GB,
+Q4_K_M). It needs no API key, and nothing leaves `localhost`.
 
 ```
-                       ┌──────────────── ollama serve (localhost:11434) ────────────────┐
-ollama run …    ──CLI──▶                                                                 │
-curl /api/chat  ──HTTP─▶  native API: streaming NDJSON, load / eval timings in ns        ├─▶ qwen2.5:3b
-curl /v1/chat/… ──HTTP─▶  OpenAI-compatible: the shape lessons 01–25 already speak       │   (Metal on Apple Silicon)
-cargo run       ──HTTP─▶  /api/version, /api/tags, /api/chat (stream)                    │
-                       └─────────────────────────────────────────────────────────────────┘
+browser ── /api/chat ──▶ axum (this crate, :3000) ── POST /api/chat ──▶ ollama serve (:11434) ──▶ qwen2.5:3b
+        ◀─ reply + stats ─                       ◀── message + counters ─                         (Metal on Apple Silicon)
 ```
 
-- **`requests.sh`**: the assignment without Rust. Server version and model
-  list, then one request per level of difficulty, each through a different
-  door. The easy one goes through `ollama run`, the medium one through
-  `/api/chat`, and the hard one through `/v1/chat/completions`.
-- **`cargo run`**: a Rust CLI on Ollama's native API. It checks that the
-  server is up and the model is pulled, then sends the same three requests at
-  temperature 0, streams each answer token by token, checks it for the
-  expected answer, and prints the server's counters: prompt and completion
-  tokens, tokens/s, time to first token, total time and model load time.
-
-### The three requests
+- **One conversation**, held in memory: a system prompt plus every turn. The
+  whole dialogue goes to Ollama on each message. A failed turn is removed
+  from the history, so a retry isn't sent twice. **Reset** clears the history.
+- **Ollama status** at the top of the page: version, host and the number of
+  pulled models (`/api/version`, `/api/tags`). It turns red with the reason
+  when Ollama isn't running. ↻ checks again.
+- **Model picker** filled with the models Ollama actually has. The default
+  model is listed even if it isn't pulled, marked `(not pulled)`, so the chat
+  shows Ollama's "try pulling it first" instead of silently using another.
+  **Temperature** goes from 0 to 2.
+- **Stats under every answer**, from Ollama's native counters: prompt →
+  completion tokens, tokens/s, total time and model load time. The first
+  message after a while shows the load (≈1 s for this model). After that it's
+  `0.00 s`, because Ollama keeps the model in memory for 5 minutes.
+- **Three preset requests** of growing difficulty, one click each. Each
+  answer is checked for its one expected result (✓ / ✗):
 
 | Level | Prompt | Checked for |
 |---|---|---|
@@ -63,42 +63,51 @@ cargo run       ──HTTP─▶  /api/version, /api/tags, /api/chat (stream)   
 | hard | Two trains, 300 km apart, leave at 9:00 (60 km/h) and 10:00 (90 km/h) toward each other. When do they meet? Step by step, time on the last line | `11:36` |
 
 The hard one has a single right answer. By 10:00 the first train has covered
-60 km, 240 km remain, they close at 150 km/h, so 1.6 h later: **11:36**. A 3B
-model usually gets it wrong. In one run it forgot the one-hour head start and
-answered 12:00, in another it divided by the second train's speed alone and
-answered 13:00. The check is a substring match, so the demo shows ✓ or ✗ for
-each answer and a summary table at the end.
+60 km, 240 km remain, they close at 150 km/h, so 1.6 h later: **11:36**. The
+3B model gets it wrong in a different way almost every time: 13:00, 12:00,
+or the right 1.6 h added to the wrong start time (03:36). Easy and medium
+come back right.
 
-### Measured on an M-series MacBook, 16 GB
+The server talks to Ollama's **native** `/api/chat` with `stream: false`, not
+the OpenAI-compatible `/v1`, because only the native endpoint reports load and
+generation time separately. Errors (Ollama not running, model not pulled) come
+back as a plain string in the JSON, so the page shows them in the chat and
+keeps working.
+
+### Without the browser: CLI and HTTP
+
+`requests.sh` asks the same three questions straight from the terminal, each
+through a different door. The easy one goes through `ollama run`, the medium
+one through the native `/api/chat`, and the hard one through the
+OpenAI-compatible `/v1/chat/completions`. It needs only `curl` and `python3`.
+
+Measured on an M-series MacBook, 16 GB:
 
 | Level | Answer | Tokens | Speed |
 |---|---|---|---|
-| easy | Париж ✓ | 3 | ~1.5 s with `ollama run`, model already loaded |
+| easy | Париж ✓ | 4 | 57 tok/s, 1.4 s, of which 1.05 s model load |
 | medium | correct, HTTP over TCP and VoIP over UDP ✓ | 190 | 45.5 tok/s, 4.4 s |
-| hard | 12:00 ✗ (correct: 11:36) | 278 | not reported: `/v1` has no timings |
-
-The first request after `ollama serve` starts also pays for loading the
-weights into memory (a few seconds). Ollama keeps the model loaded for 5
-minutes, so later requests show `model load 0.01s`.
+| hard | 1.6 h right, but 03:36 ✗ (correct: 11:36) | 295 | 44 tok/s, 7.0 s |
 
 ### Verification
 
 `cargo test` needs neither Ollama nor the network. A fake Ollama (a raw
 `TcpListener` on a random port) returns canned responses and records what it
-was sent.
+was sent. The tests call the axum handlers directly.
 
-- `reads_version_and_installed_models`: `/api/version` and `/api/tags` are
-  parsed. `qwen2.5` matches `qwen2.5:latest`, and a model that isn't pulled
-  doesn't match.
-- `streams_a_reply_token_by_token_and_reads_the_counters`: an NDJSON stream
-  arrives as separate tokens and is joined into the text. The nanosecond
-  counters become tokens/s, load and total time. The request is checked to
-  carry the model, `stream: true`, `temperature: 0` and the message.
-- `reports_errors_before_during_and_instead_of_the_stream`: a 404 with
-  Ollama's `{"error": …}` body, an error line inside the stream, a stream cut
-  off before `done`, and a server that isn't running each end in a readable
-  error, never a panic.
-- `checks_answers_for_expected_keywords`, `normalizes_ollama_host_like_ollama_does`.
+- `status_lists_the_installed_models`: `/api/version` and `/api/tags` become
+  the status the page shows.
+- `status_says_when_ollama_is_not_running`: a closed port gives a readable
+  "Can't reach Ollama" instead of an error status.
+- `chat_keeps_the_history_and_returns_the_counters`: the second request
+  carries `system, user, assistant, user`, with the first answer in it. The
+  model can be switched per message, and the temperature is clamped to 0–2.
+  `stream` is `false`. The nanosecond counters become tokens/s, load and total
+  time.
+- `a_failed_turn_is_reported_and_leaves_no_trace`: Ollama's 404 "not found"
+  reaches the page as text. An empty message never reaches Ollama. Neither one
+  stays in the history.
+- `reset_keeps_only_the_system_prompt`, `normalizes_ollama_host_like_ollama_does`.
 
 ## Run
 
@@ -119,43 +128,35 @@ ollama pull qwen2.5:3b
 On Linux: `curl -fsSL https://ollama.com/install.sh | sh`, then the same
 `ollama pull`.
 
-Check it answers:
-
-```bash
-ollama run qwen2.5:3b "Привет! Кто ты?"
-```
-
-```bash
-curl -s localhost:11434/api/chat -d '{"model":"qwen2.5:3b","stream":false,"messages":[{"role":"user","content":"Привет! Кто ты?"}]}'
-```
-
-The three requests, without Rust:
-
-```bash
-./requests.sh
-```
-
-The Rust CLI:
+Start the chat and open http://localhost:3000:
 
 ```bash
 cargo run
 ```
 
-```bash
-cargo run -- ask "Напиши хайку про Rust"
-```
-
-```bash
-cargo run -- chat
-```
-
-`chat` keeps the dialogue history and prints the counters after every
-answer. `/reset` clears the history, and `/quit` exits.
-
-Any other pulled model works too:
+Any other pulled model works too, as the default or from the picker:
 
 ```bash
 OLLAMA_MODEL=llama3.2 cargo run
+```
+
+The same thing over HTTP:
+
+```bash
+curl -s localhost:3000/api/chat -H 'Content-Type: application/json' \
+  -d '{"message": "Какая столица Франции?", "temperature": 0}'
+```
+
+| Endpoint | |
+|---|---|
+| `GET /api/status` | `{host, default_model, version, models, error}` |
+| `POST /api/chat` | `{message, model?, temperature?}` → `{model, reply, stats}` or `{model, error}` |
+| `POST /api/reset` | clears the conversation |
+
+The three requests from the terminal, without the web app:
+
+```bash
+./requests.sh
 ```
 
 ## Configuration
@@ -163,16 +164,18 @@ OLLAMA_MODEL=llama3.2 cargo run
 | Variable | Required | Default |
 |---|---|---|
 | `OLLAMA_HOST` | no | `http://localhost:11434`. Same variable as Ollama's own CLI, with or without `http://` |
-| `OLLAMA_MODEL` | no | `qwen2.5:3b` |
+| `OLLAMA_MODEL` | no | `qwen2.5:3b`: the default in the picker |
+| `PORT` | no | `3000` |
 
 No API key: the model runs locally.
 
 ## Deploy
 
-None. This is a CLI lesson (no `axum`), so the pipeline builds and tests it
-but doesn't deploy it (see [`../DEPLOYMENT.md`](../DEPLOYMENT.md)). That is
-on purpose: the point is a model on your own machine, and the VDS has no
-Ollama.
+As the newest web-app lesson, the pipeline deploys it to
+`http://<VDS host>:4026` on push to `master` (see
+[`../DEPLOYMENT.md`](../DEPLOYMENT.md)). The VDS has no Ollama, so the page
+comes up with a red "Can't reach Ollama" status. The lesson is meant to run on
+your own machine with `cargo run`.
 
 ## Conclusion
 
