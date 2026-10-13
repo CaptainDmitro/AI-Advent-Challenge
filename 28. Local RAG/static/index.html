@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local RAG</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --chip-bg: #eef0ff;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --ok-bg: rgba(22, 163, 74, 0.12);
+    --err: #dc2626;
+    --err-bg: rgba(220, 38, 38, 0.1);
+    --local: #0d9488;
+    --cloud: #7c3aed;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --chip-bg: #262a40;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --ok-bg: rgba(34, 197, 94, 0.14);
+      --err: #f87171;
+      --err-bg: rgba(248, 113, 113, 0.12);
+      --local: #2dd4bf;
+      --cloud: #a78bfa;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1150px;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2rem;
+  }
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0 0 0.25rem; font-size: 0.95rem; }
+  .status { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: center; font-size: 0.85rem; margin-top: 0.4rem; }
+  .pill { border-radius: 999px; padding: 0.15rem 0.6rem; background: var(--code-bg); }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.bad { background: var(--err-bg); color: var(--err); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    min-width: 0;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .card h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
+
+  textarea, select, input[type=number] {
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.45rem 0.6rem;
+  }
+  input[type=number] { width: 4.5rem; }
+  textarea { width: 100%; min-height: 4.2rem; resize: vertical; }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.7rem; flex-wrap: wrap; }
+  .controls { display: flex; gap: 0.9rem; flex-wrap: wrap; align-items: center; }
+  .controls label { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; }
+  .hint { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .link { background: none; color: var(--primary); padding: 0 0.2rem; font-size: 0.85rem; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .compare.single { grid-template-columns: 1fr; }
+  @media (max-width: 760px) { .compare { grid-template-columns: 1fr; } }
+  .answer { border-top: 4px solid var(--border); }
+  .answer.local { border-top-color: var(--local); }
+  .answer.cloud { border-top-color: var(--cloud); }
+  .answer h3 { margin: 0 0 0.2rem; font-size: 1rem; }
+  .answer h3 code { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+  .meta { color: var(--text-muted); font-size: 0.78rem; margin-bottom: 0.5rem; font-variant-numeric: tabular-nums; }
+  .stab { font-size: 0.8rem; background: var(--code-bg); border-radius: 8px; padding: 0.35rem 0.55rem; margin-bottom: 0.6rem; }
+  .text { white-space: pre-wrap; line-height: 1.5; font-size: 0.93rem; overflow-wrap: anywhere; }
+  .text .cite { color: var(--primary); font-weight: 700; }
+  .error { color: var(--err); font-weight: 600; overflow-wrap: anywhere; }
+  .empty { color: var(--text-muted); font-style: italic; }
+  .pending { color: var(--text-muted); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.8rem; }
+  .fact { font-size: 0.75rem; border-radius: 999px; padding: 0.15rem 0.55rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .fact.yes { background: var(--ok-bg); color: var(--ok); }
+  .fact.no { background: var(--err-bg); color: var(--err); }
+
+  details { margin-top: 0.8rem; }
+  summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+  .run { border-left: 3px solid var(--border); padding-left: 0.6rem; margin-top: 0.6rem; }
+  .src { background: var(--code-bg); border-radius: 9px; padding: 0.5rem 0.65rem; margin-top: 0.45rem; font-size: 0.8rem; }
+  .src.expected { outline: 2px solid var(--ok); }
+  .src .head { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+  .src .rank { font-weight: 700; color: var(--primary); }
+  .src .score { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  pre { white-space: pre-wrap; margin: 0.4rem 0 0; font-size: 0.76rem; max-height: 14rem; overflow: auto; }
+  .prompt pre { background: var(--code-bg); border-radius: 9px; padding: 0.6rem; max-height: 22rem; }
+
+  .expect { background: var(--chip-bg); border-radius: 10px; padding: 0.65rem 0.8rem; font-size: 0.88rem; margin-bottom: 1rem; }
+  .expect b { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 0.2rem; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  th, td { text-align: left; padding: 0.5rem 0.45rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  th.local { color: var(--local); }
+  th.cloud { color: var(--cloud); }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.case { cursor: pointer; }
+  tr.case:hover td { background: var(--code-bg); }
+  tr.case.active td { background: var(--chip-bg); }
+  .q { font-weight: 600; }
+  .sub { color: var(--text-muted); font-size: 0.78rem; margin-top: 0.2rem; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .bad { color: var(--err); font-weight: 700; }
+  .summary td:first-child { color: var(--text-muted); }
+  .summary td.group { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding-top: 0.9rem; }
+  .bar { display: inline-block; height: 0.5rem; border-radius: 4px; vertical-align: middle; margin-right: 0.35rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Local RAG</h1>
+  <p>question → local index → top-k chunks + question → a model on this machine, next to a cloud model on the same prompt</p>
+  <p class="hint" id="config">loading…</p>
+  <div class="status"><span class="pill" id="ollama">Ollama: checking…</span><span class="pill" id="cloud-status"></span><button class="link" id="recheck" title="Check again">↻</button></div>
+</header>
+
+<div class="card">
+  <div class="card-head"><h2>Ask</h2><span class="hint">or pick a control question below</span></div>
+  <textarea id="question" placeholder="e.g. Which port does a deployed lesson get?"></textarea>
+  <div class="actions">
+    <div class="controls">
+      <label><input type="checkbox" id="use-local" checked> local</label>
+      <label><select id="local-model"></select></label>
+      <label><input type="checkbox" id="use-cloud" checked> cloud</label>
+      <label>chunks <select id="k"></select></label>
+      <label>runs <select id="runs"></select></label>
+      <label>temperature <input type="number" id="temperature" min="0" max="2" step="0.1" value="0"></label>
+    </div>
+    <button class="primary" id="ask">Ask</button>
+  </div>
+</div>
+
+<div id="expect"></div>
+
+<div class="compare" id="compare">
+  <div class="card answer local" id="local">
+    <h3>Local</h3>
+    <div class="text empty">Ask something to compare.</div>
+  </div>
+  <div class="card answer cloud" id="cloud">
+    <h3>Cloud</h3>
+    <div class="text empty">Ask something to compare.</div>
+  </div>
+</div>
+
+<div class="card" id="retrieval">
+  <div class="card-head"><h2>Retrieval (local, shared by both models)</h2><span class="hint" id="retrieval-meta"></span></div>
+  <div id="retrieval-body" class="empty hint">The retrieved chunks and the exact prompt will show here.</div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Control questions</h2>
+    <button class="primary" id="run-all">Run all 10</button>
+  </div>
+  <div class="hint" style="margin-bottom:0.6rem">
+    Facts: expected facts the answer states (mean over runs). Cited: runs citing a chunk from the expected file. Time: mean seconds per answer. Same: distinct answers over the runs (1 = identical every time). Uses the settings above; click a row to see the answers.
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Question · expected</th><th>Source</th>
+          <th class="local">Facts L</th><th class="cloud">Facts C</th>
+          <th class="local">Cited L</th><th class="cloud">Cited C</th>
+          <th class="local">Time L</th><th class="cloud">Time C</th>
+          <th class="local">Same L</th><th class="cloud">Same C</th></tr>
+      </thead>
+      <tbody id="cases"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Local vs cloud over the control questions</h2><span class="hint" id="summary-meta">run some control questions first</span></div>
+  <div class="table-wrap">
+    <table class="summary">
+      <thead><tr><th></th><th class="local" id="sum-local">Local</th><th class="cloud" id="sum-cloud">Cloud</th></tr></thead>
+      <tbody id="summary"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sec = (ms) => (ms / 1000).toFixed(1) + " s";
+const pct = (x) => Math.round(x * 100) + "%";
+const mean = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+let cfg = {};
+let cases = [];
+const results = {};
+let active = null;
+let busy = false;
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  return res.json();
+}
+
+function setBusy(on) {
+  busy = on;
+  $("ask").disabled = on;
+  $("run-all").disabled = on;
+}
+
+function settings() {
+  const backends = [];
+  if ($("use-local").checked) backends.push("local");
+  if ($("use-cloud").checked && cfg.cloud_model) backends.push("cloud");
+  return {
+    k: Number($("k").value),
+    runs: Number($("runs").value),
+    temperature: Math.min(2, Math.max(0, Number($("temperature").value) || 0)),
+    backends: backends.length ? backends : ["local"],
+    local_model: $("local-model").value || null,
+  };
+}
+
+function cite(text) {
+  return esc(text).replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, '<span class="cite">[$1]</span>');
+}
+
+function runMeta(run) {
+  if (run.error) return "";
+  const parts = [`${sec(run.llm_ms)}`, `${run.prompt_tokens} → ${run.completion_tokens} tok`, `${run.e2e_tokens_per_sec} tok/s end to end`];
+  if (run.gen_tokens_per_sec != null) parts.push(`generation ${run.gen_tokens_per_sec} tok/s`, `prefill ${sec(run.prefill_ms)}`, `load ${sec(run.load_ms)}`);
+  return parts.join(" · ");
+}
+
+function factChips(score) {
+  if (!score) return "";
+  return '<div class="facts">' + score.facts.map((f) => `<span class="fact ${f.found ? "yes" : "no"}">${f.found ? "✓" : "✗"} ${esc(f.fact)}</span>`).join("") + "</div>";
+}
+
+function stabLine(s, hasCase) {
+  if (s.runs < 2) return "";
+  const parts = [`${s.runs} runs`, `${s.distinct_answers} distinct answer${s.distinct_answers === 1 ? "" : "s"}`, `${s.errors} error${s.errors === 1 ? "" : "s"}`, `${s.cited_runs} with citations`];
+  if (hasCase && s.fact_mean != null) parts.push(`facts ${pct(s.fact_min)}–${pct(s.fact_max)}`);
+  parts.push(`time ${sec(s.ms_min)}–${sec(s.ms_max)}`);
+  return `<div class="stab">${parts.join(" · ")}</div>`;
+}
+
+function renderAnswer(el, kind, result, hasCase) {
+  const label = kind === "local" ? "Local" : "Cloud";
+  if (result === "pending") {
+    el.innerHTML = `<h3>${label}</h3><div class="text pending">thinking…</div>`;
+    return;
+  }
+  if (!result) {
+    el.innerHTML = `<h3>${label}</h3><div class="text empty">not asked</div>`;
+    return;
+  }
+  let html = `<h3>${label} <code>${esc(result.model)}</code></h3>`;
+  if (result.error) { el.innerHTML = html + `<div class="error">${esc(result.error)}</div>`; return; }
+  const [first, ...rest] = result.runs;
+  html += `<div class="meta">${runMeta(first)}</div>` + stabLine(result.stability, hasCase);
+  html += first.error ? `<div class="error">${esc(first.error)}</div>` : `<div class="text">${cite(first.text)}</div>`;
+  html += factChips(first.score);
+  if (rest.length) {
+    html += `<details><summary>Other runs (${rest.length})</summary>` + rest.map((run, i) => `<div class="run"><div class="meta">run ${i + 2} · ${runMeta(run)}</div>` +
+      (run.error ? `<div class="error">${esc(run.error)}</div>` : `<div class="text">${cite(run.text)}</div>`) + factChips(run.score) + "</div>").join("") + "</details>";
+  }
+  el.innerHTML = html;
+}
+
+function renderRetrieval(resp) {
+  if (!resp || resp === "pending") { $("retrieval-meta").textContent = ""; $("retrieval-body").innerHTML = resp ? '<span class="pending">searching…</span>' : ""; return; }
+  if (resp.error) { $("retrieval-meta").textContent = ""; $("retrieval-body").innerHTML = `<div class="error">${esc(resp.error)}</div>`; return; }
+  const expected = new Set((resp.case?.sources || []).map((s) => s.file));
+  $("retrieval-meta").textContent = `${resp.sources.length} chunks in ${resp.retrieve_ms} ms · ${cfg.embedder}` +
+    (resp.source_retrieved == null ? "" : resp.source_retrieved ? " · expected source found ✓" : " · expected source missing ✗");
+  $("retrieval-body").className = "";
+  $("retrieval-body").innerHTML = resp.sources.map((h) => `<div class="src ${expected.has(h.source) ? "expected" : ""}">
+      <div class="head"><span class="rank">[${h.rank}]</span><span class="score">${h.score.toFixed(3)}</span><b>${esc(h.source)}</b><span>${esc(h.section)}</span><span class="score">≈${h.tokens} tok</span></div>
+      <details><summary>text</summary><pre>${esc(h.text)}</pre></details>
+    </div>`).join("") +
+    `<details class="prompt"><summary>Prompt sent to both models</summary>` +
+    resp.messages.map((m) => `<pre><b>${esc(m.role)}</b>\n${esc(m.content)}</pre>`).join("") + "</details>";
+}
+
+function renderExpect(kase) {
+  if (!kase) { $("expect").innerHTML = ""; return; }
+  $("expect").innerHTML = `<div class="expect"><b>Expected answer</b>${esc(kase.expect)}
+    <div class="sub">Sources: ${kase.sources.map((s) => `${esc(s.file)} — ${esc(s.section)}`).join("; ")}</div></div>`;
+}
+
+function show(resp, wanted) {
+  const by = {};
+  if (resp && resp !== "pending" && !resp.error) for (const r of resp.results) by[r.backend] = r;
+  const pending = resp === "pending";
+  const hasCase = !!(resp && resp.case);
+  for (const kind of ["local", "cloud"]) {
+    const asked = wanted ? wanted.includes(kind) : !!by[kind];
+    renderAnswer($(kind), kind, pending ? (asked ? "pending" : null) : resp?.error ? { model: "", error: resp.error } : by[kind], hasCase);
+  }
+  $("compare").classList.toggle("single", !cfg.cloud_model);
+  $("cloud").style.display = cfg.cloud_model ? "" : "none";
+  renderRetrieval(resp);
+}
+
+function bySide(r, kind) { return r?.results?.find((x) => x.backend === kind); }
+
+function factsCell(res, color) {
+  if (!res) return "–";
+  if (res.error) return '<span class="bad">n/a</span>';
+  const s = res.stability;
+  if (s.fact_mean == null) return '<span class="bad">error</span>';
+  const total = res.runs[0].score.total;
+  const w = Math.round(s.fact_mean * 48);
+  return `<span class="bar" style="width:${w}px;background:${color}"></span>${(s.fact_mean * total).toFixed(s.runs > 1 ? 1 : 0)}/${total}`;
+}
+
+function citedCell(res) {
+  if (!res || res.error) return "–";
+  const n = res.runs.filter((r) => r.score?.cited_expected).length;
+  const cls = n === res.runs.length ? "ok" : n === 0 ? "bad" : "";
+  return `<span class="${cls}">${n}/${res.runs.length}</span>`;
+}
+
+function timeCell(res) { return !res || res.error || res.stability.errors === res.stability.runs ? "–" : sec(res.stability.ms_mean); }
+
+function sameCell(res) {
+  if (!res || res.error) return "–";
+  const s = res.stability;
+  const err = s.errors ? ` <span class="bad">${s.errors} err</span>` : "";
+  return `${s.distinct_answers}/${s.runs - s.errors}${err}`;
+}
+
+function flag(v) { return v == null ? "–" : v ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>'; }
+
+function renderCases() {
+  $("cases").innerHTML = cases.map((c) => {
+    const r = results[c.id];
+    const p = r === "pending" ? '<span class="pending">…</span>' : null;
+    const l = bySide(r, "local"), cl = bySide(r, "cloud");
+    return `<tr class="case ${active === c.id ? "active" : ""}" data-id="${c.id}">
+      <td>${c.id}</td>
+      <td><div class="q">${esc(c.question)}</div><div class="sub">${esc(c.expect)}</div></td>
+      <td class="num">${p ?? flag(r?.source_retrieved)}</td>
+      <td class="num">${p ?? factsCell(l, "var(--local)")}</td><td class="num">${p ?? factsCell(cl, "var(--cloud)")}</td>
+      <td class="num">${p ?? citedCell(l)}</td><td class="num">${p ?? citedCell(cl)}</td>
+      <td class="num">${p ?? timeCell(l)}</td><td class="num">${p ?? timeCell(cl)}</td>
+      <td class="num">${p ?? sameCell(l)}</td><td class="num">${p ?? sameCell(cl)}</td>
+    </tr>`;
+  }).join("");
+  document.querySelectorAll("tr.case").forEach((tr) => tr.onclick = () => openCase(tr.dataset.id));
+  renderSummary();
+}
+
+function renderSummary() {
+  const done = cases.map((c) => results[c.id]).filter((r) => r && r !== "pending" && !r.error);
+  $("summary-meta").textContent = done.length ? `${done.length} of ${cases.length} questions` : "run some control questions first";
+  const side = (kind) => {
+    const rs = done.map((r) => bySide(r, kind)).filter((x) => x && !x.error);
+    const runs = rs.flatMap((x) => x.runs);
+    const ok = runs.filter((r) => !r.error);
+    if (!rs.length) return null;
+    const gen = ok.map((r) => r.gen_tokens_per_sec).filter((x) => x != null);
+    return {
+      model: rs[0].model,
+      facts: mean(ok.map((r) => r.score.fact_score)),
+      cited: ok.filter((r) => r.score.cited_expected).length + "/" + ok.length,
+      time: mean(ok.map((r) => r.llm_ms)),
+      e2e: mean(ok.map((r) => r.e2e_tokens_per_sec)),
+      gen: mean(gen),
+      prefill: mean(ok.map((r) => r.prefill_ms).filter((x) => x != null)),
+      load: mean(ok.map((r) => r.load_ms).filter((x) => x != null)),
+      errors: (runs.length - ok.length) + "/" + runs.length,
+      same: rs.filter((x) => x.stability.errors === 0 && x.stability.distinct_answers === 1).length + "/" + rs.length,
+      varied: rs.filter((x) => x.stability.fact_min !== x.stability.fact_max).length + "/" + rs.length,
+      uncited: (ok.length - rs.reduce((a, x) => a + x.stability.cited_runs, 0)) + "/" + ok.length,
+    };
+  };
+  const L = side("local"), C = side("cloud");
+  $("sum-local").innerHTML = "Local" + (L ? ` <code>${esc(L.model)}</code>` : "");
+  $("sum-cloud").innerHTML = "Cloud" + (C ? ` <code>${esc(C.model)}</code>` : "");
+  const v = (s, f) => (s ? f(s) ?? "–" : "–");
+  const rows = [
+    ["Quality"],
+    ["expected facts stated", (s) => s.facts == null ? null : pct(s.facts)],
+    ["answers citing the expected source", (s) => s.cited],
+    ["Speed"],
+    ["time per answer", (s) => s.time == null ? null : sec(s.time)],
+    ["completion tokens / wall-clock second", (s) => s.e2e == null ? null : s.e2e.toFixed(1)],
+    ["generation tok/s · prefill · load (Ollama)", (s) => s.gen == null ? null : `${s.gen.toFixed(1)} · ${sec(s.prefill)} · ${sec(s.load)}`],
+    ["Stability"],
+    ["failed calls", (s) => s.errors],
+    ["questions with one answer across runs", (s) => s.same],
+    ["questions whose fact score changed", (s) => s.varied],
+    ["answers without any [n] citation", (s) => s.uncited],
+  ];
+  $("summary").innerHTML = rows.map(([name, f]) => f
+    ? `<tr><td>${name}</td><td class="num">${v(L, f)}</td><td class="num">${v(C, f)}</td></tr>`
+    : `<tr><td class="group" colspan="3">${name}</td></tr>`).join("");
+}
+
+function openCase(id) {
+  const kase = cases.find((c) => c.id === id);
+  active = id;
+  $("question").value = kase.question;
+  renderExpect(kase);
+  renderCases();
+  const r = results[id];
+  if (r && r !== "pending") show(r);
+  else if (!busy) { setBusy(true); runCase(id).finally(() => setBusy(false)); }
+}
+
+async function runCase(id) {
+  const kase = cases.find((c) => c.id === id);
+  const s = settings();
+  results[id] = "pending";
+  active = id;
+  renderExpect(kase);
+  show("pending", s.backends);
+  renderCases();
+  let resp;
+  try {
+    resp = await api("/api/ask", { case_id: id, ...s });
+  } catch (e) {
+    resp = { error: String(e), results: [] };
+  }
+  results[id] = resp;
+  if (active === id) show(resp);
+  renderCases();
+}
+
+$("ask").onclick = async () => {
+  const question = $("question").value.trim();
+  const kase = cases.find((c) => c.question === question);
+  setBusy(true);
+  try {
+    if (kase) { await runCase(kase.id); return; }
+    active = null;
+    renderExpect(null);
+    renderCases();
+    const s = settings();
+    show("pending", s.backends);
+    const resp = await api("/api/ask", { question, ...s });
+    show(resp);
+  } catch (e) {
+    show({ error: String(e), results: [] });
+  } finally {
+    setBusy(false);
+  }
+};
+
+$("run-all").onclick = async () => {
+  setBusy(true);
+  try {
+    for (const c of cases) {
+      $("question").value = c.question;
+      await runCase(c.id);
+    }
+  } finally {
+    setBusy(false);
+  }
+};
+
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("ask").click();
+});
+
+async function checkStatus() {
+  const pill = $("ollama");
+  pill.className = "pill";
+  pill.textContent = "Ollama: checking…";
+  try {
+    const st = await api("/api/status");
+    if (st.error) {
+      pill.className = "pill bad";
+      pill.textContent = "Ollama ✗ " + st.error;
+    } else {
+      pill.className = "pill ok";
+      pill.textContent = `Ollama ${st.version} ✓ ${st.host} · ${st.models.length} model${st.models.length === 1 ? "" : "s"}`;
+    }
+    const select = $("local-model");
+    const current = select.value || cfg.local_model;
+    const names = [...st.models];
+    if (!names.includes(cfg.local_model)) names.unshift(cfg.local_model);
+    select.innerHTML = names.map((m) => `<option value="${esc(m)}"${m === current ? " selected" : ""}>${esc(m)}${st.models.includes(m) ? "" : " (not pulled)"}</option>`).join("");
+  } catch (e) {
+    pill.className = "pill bad";
+    pill.textContent = "Ollama ✗ " + e;
+  }
+}
+$("recheck").onclick = checkStatus;
+
+(async () => {
+  cfg = await api("/api/config");
+  $("config").textContent = `retrieval: ${cfg.documents} documents → ${cfg.chunks} chunks, embedder ${cfg.embedder} · local num_ctx ${cfg.num_ctx}`;
+  const cloud = $("cloud-status");
+  if (cfg.cloud_model) {
+    cloud.className = "pill";
+    cloud.textContent = `cloud for comparison: ${cfg.cloud_model}`;
+  } else {
+    cloud.className = "pill ok";
+    cloud.textContent = "cloud: off (fully local)";
+    $("use-cloud").checked = false;
+    $("use-cloud").disabled = true;
+  }
+  $("compare").classList.toggle("single", !cfg.cloud_model);
+  $("cloud").style.display = cfg.cloud_model ? "" : "none";
+  for (let k = 1; k <= cfg.max_top_k; k++) $("k").add(new Option(String(k), String(k), false, k === cfg.top_k));
+  for (let n = 1; n <= cfg.max_runs; n++) $("runs").add(new Option(String(n), String(n), false, n === 1));
+  await checkStatus();
+  cases = await api("/api/cases");
+  renderCases();
+})();
+</script>
+</body>
+</html>
