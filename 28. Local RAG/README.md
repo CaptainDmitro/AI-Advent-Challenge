@@ -31,7 +31,7 @@ RAG-система, полностью работающая локально
 
 ## Demo
 
-_(video to be added)_
+https://github.com/user-attachments/assets/25e0c41e-eff1-4ccb-8faf-c28796d87ef1
 
 ## What this is
 
