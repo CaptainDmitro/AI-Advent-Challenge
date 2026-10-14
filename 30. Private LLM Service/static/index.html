@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Private LLM</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --code-bg: #f0f1f4;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+    --bubble-user: #4f46e5;
+    --bubble-user-text: #ffffff;
+    --ok: #059669;
+    --warn: #d97706;
+    --bad: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --code-bg: #262a33;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+      --bubble-user: #6366f1;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+  }
+
+  header { text-align: center; margin-bottom: 1rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.35rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0 0 0.7rem; font-size: 0.95rem; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    font-size: 0.82rem; color: var(--text-muted);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 0.3rem 0.8rem; max-width: 100%;
+  }
+  .pill .dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .pill.ok .dot { background: var(--ok); }
+  .pill.bad .dot { background: var(--bad); }
+  .pill.bad { color: var(--bad); }
+  .pill button { background: transparent; color: inherit; border: none; padding: 0 0.2rem; font-size: 0.9rem; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow);
+  }
+
+  .keybar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
+    padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.85rem;
+  }
+  .keybar label { color: var(--text-muted); }
+  .keybar input {
+    flex: 1; min-width: 12rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem; color: var(--text); background: var(--code-bg);
+    border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.55rem;
+  }
+  .keybar .hint { color: var(--text-muted); font-size: 0.78rem; width: 100%; }
+  .keybar .hint code { background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 4px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  .chat-col { display: flex; flex-direction: column; height: calc(100vh - 13rem); min-height: 28rem; }
+  .chat {
+    flex: 1; overflow-y: auto; padding: 1.1rem;
+    display: flex; flex-direction: column; gap: 0.9rem; min-height: 0;
+  }
+  .empty-state { margin: auto; color: var(--text-muted); text-align: center; font-size: 0.95rem; }
+
+  .bubble-row { display: flex; flex-direction: column; }
+  .bubble-row.user { align-items: flex-end; }
+  .bubble-row.assistant { align-items: flex-start; }
+  .bubble {
+    max-width: 82%; padding: 0.65rem 0.95rem; border-radius: 14px;
+    font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: break-word;
+  }
+  .bubble-row.user .bubble { background: var(--bubble-user); color: var(--bubble-user-text); border-bottom-right-radius: 4px; }
+  .bubble-row.assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble.error { color: var(--bad); }
+  .bubble.loading { color: var(--text-muted); font-style: italic; animation: pulse 1.3s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .bubble code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.88em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .bubble pre { background: var(--code-bg); padding: 0.75em; border-radius: 8px; overflow-x: auto; margin: 0.4em 0; white-space: pre; }
+  .bubble pre code { background: none; padding: 0; }
+  .meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; padding: 0 0.3rem; font-variant-numeric: tabular-nums; }
+
+  .composer { margin-top: 0.75rem; padding: 0.85rem 1rem; flex: none; }
+  textarea#prompt {
+    width: 100%; height: 3rem; font-family: inherit; font-size: 1rem; color: var(--text);
+    background: transparent; border: none; outline: none; resize: none;
+  }
+  textarea#prompt::placeholder { color: var(--text-muted); }
+  .settings-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.1rem;
+    margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--border);
+    font-size: 0.8rem; color: var(--text-muted);
+  }
+  .setting { display: flex; align-items: center; gap: 0.45rem; }
+  select#model {
+    font-family: inherit; font-size: 0.85rem; color: var(--text); background: var(--code-bg);
+    border: 1px solid var(--border); border-radius: 6px; padding: 0.25rem 0.45rem; max-width: 12rem;
+  }
+  .setting input[type="range"] { width: 6rem; accent-color: var(--primary); }
+  .ctx { flex: 1; min-width: 10rem; }
+  .ctx .bar { height: 6px; border-radius: 3px; background: var(--code-bg); overflow: hidden; margin-top: 0.25rem; }
+  .ctx .bar div { height: 100%; width: 0; background: var(--ok); transition: width 0.2s ease; }
+  .composer-footer { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }
+  .composer-footer .hint { font-size: 0.78rem; color: var(--text-muted); }
+  .composer-footer .actions { display: flex; gap: 0.6rem; }
+
+  button {
+    border: none; border-radius: 9px; padding: 0.5rem 1.1rem; font-size: 0.92rem; font-weight: 600;
+    cursor: pointer; transition: background 0.15s ease, transform 0.05s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .ghost:hover:not(:disabled) { color: var(--text); border-color: var(--text-muted); }
+
+  .side { display: flex; flex-direction: column; gap: 1rem; }
+  .side section { padding: 0.9rem 1rem; }
+  .side h2 { font-size: 0.95rem; margin: 0 0 0.6rem; display: flex; justify-content: space-between; align-items: baseline; }
+  .side h2 small { font-weight: 400; color: var(--text-muted); font-size: 0.75rem; }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.8rem; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  .kv span:nth-child(odd) { color: var(--text-muted); }
+  .kv span:nth-child(even) { text-align: right; }
+  .slots { display: flex; gap: 0.3rem; flex-wrap: wrap; margin: 0.15rem 0 0.6rem; }
+  .slots i { width: 1.1rem; height: 1.1rem; border-radius: 4px; border: 1px solid var(--border); background: var(--code-bg); }
+  .slots i.run { background: var(--primary); border-color: var(--primary); }
+  .slots i.wait { background: var(--warn); border-color: var(--warn); }
+  .slots-label { font-size: 0.75rem; color: var(--text-muted); }
+  .codes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
+  .code {
+    font-size: 0.75rem; font-weight: 600; border-radius: 999px; padding: 0.15rem 0.55rem;
+    background: var(--code-bg); font-variant-numeric: tabular-nums;
+  }
+  .code.s2 { color: var(--ok); }
+  .code.s4 { color: var(--warn); }
+  .code.s5 { color: var(--bad); }
+
+  .tests { display: flex; flex-direction: column; gap: 0.5rem; }
+  .test-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+  .test-row button { padding: 0.4rem 0.8rem; font-size: 0.82rem; flex: none; }
+  .test-row input { width: 3.2rem; font-size: 0.82rem; padding: 0.3rem; border-radius: 6px; border: 1px solid var(--border); background: var(--code-bg); color: var(--text); }
+  .test-row span { color: var(--text-muted); }
+  .log {
+    margin-top: 0.7rem; max-height: 17rem; overflow-y: auto; font-size: 0.78rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    border-top: 1px solid var(--border); padding-top: 0.5rem;
+  }
+  .log div { padding: 0.12rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .log .summary { font-weight: 700; color: var(--text); padding-top: 0.35rem; }
+  .log .s2 { color: var(--ok); }
+  .log .s4 { color: var(--warn); }
+  .log .s5 { color: var(--bad); }
+  .log .muted { color: var(--text-muted); }
+
+  @media (max-width: 520px) {
+    body { padding: 1rem 0.75rem; }
+    .bubble { max-width: 94%; }
+    .composer-footer .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Private LLM</h1>
+    <p>My own AI service: Qwen 2.5 3B on my Mac, served over HTTP behind API keys, a rate limit, a context limit and a queue.</p>
+    <div class="pill" id="health"><span class="dot"></span><span id="health-text">Checking the service…</span><button type="button" id="health-refresh" title="Check again">↻</button></div>
+  </header>
+
+  <div class="card keybar">
+    <label for="key">API key</label>
+    <input id="key" type="password" placeholder="sk-local-…" autocomplete="off" spellcheck="false">
+    <button type="button" class="ghost" id="key-show">Show</button>
+    <button type="button" class="primary" id="key-save">Use key</button>
+    <div class="hint" id="key-hint">The key stays in this browser. On the VDS it's in <code>~/apps/lesson-30/api_keys.txt</code>.</div>
+  </div>
+
+  <div class="layout">
+    <div class="chat-col">
+      <div class="card chat" id="chat">
+        <div class="empty-state" id="empty-state">Enter the API key, then send a message.</div>
+      </div>
+      <div class="card composer">
+        <textarea id="prompt" placeholder="Ask the private model something..."></textarea>
+        <div class="settings-row">
+          <label class="setting">Model <select id="model"><option value="">—</option></select></label>
+          <label class="setting">Temperature
+            <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+            <span id="temperature-value">0.7</span>
+          </label>
+          <div class="ctx" title="Estimated as the service does: UTF-8 bytes / 4 + 4 per message, plus max_tokens for the answer">
+            <span id="ctx-text">context: –</span>
+            <div class="bar"><div id="ctx-bar"></div></div>
+          </div>
+        </div>
+        <div class="composer-footer">
+          <span class="hint">Enter to send · Shift+Enter for a new line · the history lives in this tab and goes with every message</span>
+          <div class="actions">
+            <button id="reset" type="button" class="ghost">New chat</button>
+            <button id="send" type="button" class="primary">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <section class="card">
+        <h2>Service <small id="stats-age">live</small></h2>
+        <div class="slots-label" id="slots-label">generating · waiting · free</div>
+        <div class="slots" id="slots"></div>
+        <div class="kv" id="stats"><span>Enter a key to see the stats</span><span></span></div>
+        <div class="codes" id="codes"></div>
+      </section>
+
+      <section class="card">
+        <h2>Checks <small>each one is real traffic</small></h2>
+        <div class="tests">
+          <div class="test-row">
+            <button type="button" class="ghost" id="t-parallel">Parallel</button>
+            <input type="number" id="t-parallel-n" value="6" min="1" max="30">
+            <span>requests at once: who runs, who waits, who gets 503</span>
+          </div>
+          <div class="test-row">
+            <button type="button" class="ghost" id="t-rate">Rate limit</button>
+            <span>cheap invalid requests until 429 (spends this minute's budget)</span>
+          </div>
+          <div class="test-row">
+            <button type="button" class="ghost" id="t-context">Context</button>
+            <span>a prompt over max context → 413, Ollama never sees it</span>
+          </div>
+          <div class="test-row">
+            <button type="button" class="ghost" id="t-auth">No key</button>
+            <span>the same request without a key → 401</span>
+          </div>
+        </div>
+        <div class="log" id="log"><div class="muted">Results show up here.</div></div>
+      </section>
+    </div>
+  </div>
+
+<script>
+const SYSTEM_PROMPT = 'You are a helpful assistant running privately on its owner\'s machine. Answer clearly, in the language of the question.';
+const KEY_STORAGE = 'private-llm-key';
+
+const $ = (id) => document.getElementById(id);
+const chatEl = $('chat'), promptEl = $('prompt'), sendButton = $('send'), modelEl = $('model');
+const temperatureEl = $('temperature'), keyEl = $('key'), logEl = $('log');
+
+let apiKey = '';
+let limits = null;
+let history = [{ role: 'system', content: SYSTEM_PROMPT }];
+
+try { apiKey = localStorage.getItem(KEY_STORAGE) || ''; } catch (_) {}
+keyEl.value = apiKey;
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Minimal, dependency-free markdown: fenced/inline code, bold, italic.
+function renderMarkdown(raw) {
+  const blocks = [];
+  let text = raw.replace(/```(?:\w*)\n?([\s\S]*?)```/g, (_, code) => {
+    blocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return `\u0000${blocks.length - 1}\u0000`;
+  });
+  text = escapeHtml(text);
+  text = text.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  return text.replace(/\u0000(\d+)\u0000/g, (_, i) => blocks[i]);
+}
+
+// The HTTP API this page uses is the same one any client would: OpenAI-shaped,
+// Bearer key, real status codes.
+async function api(path, { method = 'GET', body, key = apiKey } = {}) {
+  const headers = {};
+  if (key) headers['Authorization'] = `Bearer ${key}`;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const started = performance.now();
+  const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const ms = performance.now() - started;
+  let data = null;
+  try { data = await res.json(); } catch (_) {}
+  return { status: res.status, ok: res.ok, data, ms, headers: res.headers };
+}
+
+function errorText(r) {
+  const e = r.data && r.data.error;
+  return `${r.status} ${e ? `${e.code}: ${e.message}` : 'no body'}`;
+}
+
+// ------------------------------------------------------------ health & key
+
+async function refreshHealth() {
+  const pill = $('health'), text = $('health-text');
+  pill.className = 'pill';
+  text.textContent = 'Checking the service…';
+  try {
+    const { data } = await api('/health', { key: '' });
+    if (data.ollama.reachable) {
+      pill.classList.add('ok');
+      text.textContent = `Service up · Ollama ${data.ollama.version} · default ${data.default_model}`;
+    } else {
+      pill.classList.add('bad');
+      text.textContent = `Service up, model unreachable: ${data.ollama.error}`;
+    }
+  } catch (e) {
+    pill.classList.add('bad');
+    text.textContent = `Service unreachable: ${e}`;
+  }
+}
+
+async function useKey() {
+  apiKey = keyEl.value.trim();
+  try { localStorage.setItem(KEY_STORAGE, apiKey); } catch (_) {}
+  const hint = $('key-hint');
+  if (!apiKey) { hint.textContent = 'No key: everything except /health answers 401.'; return; }
+  const r = await api('/v1/models');
+  if (!r.ok) {
+    hint.innerHTML = `<span style="color:var(--bad)">${escapeHtml(errorText(r))}</span>`;
+    return;
+  }
+  hint.innerHTML = `Key accepted. ${r.data.data.length} model(s) on the Mac.`;
+  const current = modelEl.value || r.data.default;
+  const names = r.data.data.map((m) => m.id);
+  if (!names.includes(r.data.default)) names.unshift(r.data.default);
+  modelEl.innerHTML = names.map((n) => `<option>${escapeHtml(n)}</option>`).join('');
+  modelEl.value = names.includes(current) ? current : r.data.default;
+  refreshStats();
+}
+
+// ------------------------------------------------------------ stats
+
+async function refreshStats() {
+  if (!apiKey) return;
+  let r;
+  try { r = await api('/api/stats'); } catch (_) { return; }
+  if (!r.ok) return;
+  const s = r.data;
+  limits = s.limits;
+  const slots = [];
+  for (let i = 0; i < limits.max_concurrent; i++) slots.push(`<i class="${i < s.running ? 'run' : ''}"></i>`);
+  for (let i = 0; i < limits.max_queue; i++) slots.push(`<i class="${i < s.queued ? 'wait' : ''}" style="border-radius:50%"></i>`);
+  $('slots').innerHTML = slots.join('');
+  $('slots-label').textContent = `${s.running}/${limits.max_concurrent} generating · ${s.queued}/${limits.max_queue} waiting`;
+  const l = s.latency_ms;
+  const rows = [
+    ['Rate limit', `${limits.requests_per_minute} / min per key`],
+    ['Left this minute (you)', s.you.remaining_this_minute],
+    ['Max context', `${limits.max_context_tokens} tokens`],
+    ['Max answer', `${limits.max_output_tokens} tokens`],
+    ['Max body', `${Math.round(limits.max_body_bytes / 1024)} KB`],
+    ['Requests served', s.requests],
+    ['Latency avg / p50 / p95', l.count ? `${(l.avg / 1000).toFixed(1)} / ${(l.p50 / 1000).toFixed(1)} / ${(l.p95 / 1000).toFixed(1)} s` : '–'],
+    ['Tokens generated', s.completion_tokens],
+  ];
+  $('stats').innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${escapeHtml(v)}</span>`).join('');
+  $('codes').innerHTML = Object.entries(s.by_status)
+    .map(([code, n]) => `<span class="code s${code[0]}">${code} × ${n}</span>`).join('');
+  updateContextMeter();
+}
+
+// ------------------------------------------------------------ chat
+
+// The same estimate the service makes, so the meter fills up exactly where the 413 starts.
+function estimateTokens(messages) {
+  const enc = new TextEncoder();
+  return messages.reduce((sum, m) => sum + Math.ceil(enc.encode(m.content).length / 4) + 4, 0);
+}
+
+function updateContextMeter(extra = '') {
+  if (!limits) return;
+  const pending = extra ? [...history, { role: 'user', content: extra }] : history;
+  const used = estimateTokens(pending) + limits.max_output_tokens;
+  const share = used / limits.max_context_tokens;
+  $('ctx-text').textContent = `context: ≈${used} / ${limits.max_context_tokens} tokens (incl. ${limits.max_output_tokens} for the answer)`;
+  const bar = $('ctx-bar');
+  bar.style.width = `${Math.min(100, share * 100)}%`;
+  bar.style.background = share > 1 ? 'var(--bad)' : share > 0.8 ? 'var(--warn)' : 'var(--ok)';
+}
+
+function addRow(role) {
+  const empty = $('empty-state');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = `bubble-row ${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  row.appendChild(bubble);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return { row, bubble };
+}
+
+async function send(message) {
+  if (!apiKey) { $('key-hint').innerHTML = '<span style="color:var(--bad)">Enter the API key first.</span>'; return; }
+  sendButton.disabled = true;
+  addRow('user').bubble.textContent = message;
+  const { row, bubble } = addRow('assistant');
+  bubble.classList.add('loading');
+  bubble.textContent = 'Generating on the Mac…';
+  history.push({ role: 'user', content: message });
+  try {
+    const r = await api('/v1/chat/completions', {
+      method: 'POST',
+      body: { model: modelEl.value, messages: history, temperature: parseFloat(temperatureEl.value) },
+    });
+    bubble.classList.remove('loading');
+    if (!r.ok) {
+      history.pop(); // a refused turn leaves no trace, so a retry isn't sent twice
+      bubble.classList.add('error');
+      bubble.textContent = errorText(r);
+      return;
+    }
+    const reply = r.data.choices[0].message.content;
+    history.push({ role: 'assistant', content: reply });
+    bubble.innerHTML = renderMarkdown(reply);
+    const u = r.data.usage, sv = r.data.service;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `${r.data.model} · ${u.prompt_tokens} → ${u.completion_tokens} tok · ` +
+      `${sv.tokens_per_sec.toFixed(1)} tok/s · ${(r.ms / 1000).toFixed(2)} s (queue ${sv.queue_ms} ms, load ${sv.load_ms} ms)` +
+      (r.data.choices[0].finish_reason === 'length' ? ' · cut at max_tokens' : '') +
+      ` · ${sv.rate_limit_remaining} req left this minute`;
+    row.appendChild(meta);
+  } catch (e) {
+    history.pop();
+    bubble.classList.remove('loading');
+    bubble.classList.add('error');
+    bubble.textContent = `Error: ${e}`;
+  } finally {
+    sendButton.disabled = false;
+    chatEl.scrollTop = chatEl.scrollHeight;
+    updateContextMeter();
+    refreshStats();
+    promptEl.focus();
+  }
+}
+
+function sendTyped() {
+  const message = promptEl.value.trim();
+  if (!message || sendButton.disabled) return;
+  promptEl.value = '';
+  send(message);
+}
+
+// ------------------------------------------------------------ checks
+
+function log(html, cls = '') {
+  if (logEl.querySelector('.muted') && logEl.children.length === 1) logEl.innerHTML = '';
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.innerHTML = html;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function statusLine(label, r) {
+  const cls = `s${String(r.status)[0]}`;
+  const tail = r.ok ? `“${escapeHtml(r.data.choices[0].message.content.trim().slice(0, 40))}” queue ${r.data.service.queue_ms} ms` : escapeHtml(errorText(r));
+  return [`${label} <b>${r.status}</b> ${(r.ms / 1000).toFixed(2)} s · ${tail}`, cls];
+}
+
+function guard(fn) {
+  return async (e) => {
+    const button = e.currentTarget;
+    if (!apiKey) { log('Enter the API key first.', 's4'); return; }
+    button.disabled = true;
+    try { await fn(); } catch (err) { log(`error: ${escapeHtml(err)}`, 's5'); }
+    finally { button.disabled = false; refreshStats(); }
+  };
+}
+
+$('t-parallel').addEventListener('click', guard(async () => {
+  const n = Math.max(1, Math.min(30, parseInt($('t-parallel-n').value, 10) || 6));
+  log(`<span class="summary">▶ ${n} requests at once</span>`);
+  const started = performance.now();
+  const poll = setInterval(refreshStats, 300);
+  const results = await Promise.all(Array.from({ length: n }, (_, i) =>
+    api('/v1/chat/completions', {
+      method: 'POST',
+      body: {
+        model: modelEl.value,
+        messages: [{ role: 'user', content: `Request #${i + 1}: name one random animal. Answer with one word.` }],
+        temperature: 0.7,
+        max_tokens: 16,
+      },
+    }).then((r) => { log(...statusLine(`#${i + 1}`, r)); return r; })
+  ));
+  clearInterval(poll);
+  const byStatus = {};
+  results.forEach((r) => { byStatus[r.status] = (byStatus[r.status] || 0) + 1; });
+  const ok = results.filter((r) => r.ok).map((r) => r.ms).sort((a, b) => a - b);
+  const wall = (performance.now() - started) / 1000;
+  log(`= ${Object.entries(byStatus).map(([s, c]) => `${c} × ${s}`).join(', ')} in ${wall.toFixed(1)} s` +
+    (ok.length ? ` · fastest ${(ok[0] / 1000).toFixed(1)} s, slowest ${(ok[ok.length - 1] / 1000).toFixed(1)} s` : ''), 'summary');
+}));
+
+$('t-rate').addEventListener('click', guard(async () => {
+  log('<span class="summary">▶ invalid requests (empty messages) until 429</span>');
+  const limit = limits ? limits.requests_per_minute : 20;
+  const counts = {};
+  for (let i = 1; i <= limit + 1; i++) {
+    const r = await api('/v1/chat/completions', { method: 'POST', body: { messages: [] } });
+    counts[r.status] = (counts[r.status] || 0) + 1;
+    if (r.status === 429) {
+      log(`#${i} <b>429</b> Retry-After: ${r.headers.get('Retry-After')} s · ${escapeHtml(r.data.error.message)}`, 's4');
+      break;
+    }
+  }
+  log(`= ${Object.entries(counts).map(([s, c]) => `${c} × ${s}`).join(', ')}. Every request counts toward the limit, even a broken one, and the check comes before the model.`, 'summary');
+}));
+
+$('t-context').addEventListener('click', guard(async () => {
+  const max = limits ? limits.max_context_tokens : 4096;
+  const content = 'Тест контекста. '.repeat(Math.ceil((max * 4) / 29) + 10);
+  log(`<span class="summary">▶ a ${Math.round(new TextEncoder().encode(content).length / 1024)} KB prompt</span>`);
+  const r = await api('/v1/chat/completions', { method: 'POST', body: { messages: [{ role: 'user', content }] } });
+  log(escapeHtml(errorText(r)) + ` · ${r.ms.toFixed(0)} ms`, `s${String(r.status)[0]}`);
+}));
+
+$('t-auth').addEventListener('click', guard(async () => {
+  const r = await api('/v1/chat/completions', { method: 'POST', key: '', body: { messages: [{ role: 'user', content: 'hi' }] } });
+  log(`no key → ${escapeHtml(errorText(r))}`, `s${String(r.status)[0]}`);
+  const w = await api('/v1/chat/completions', { method: 'POST', key: 'sk-local-guess', body: { messages: [{ role: 'user', content: 'hi' }] } });
+  log(`wrong key → ${escapeHtml(errorText(w))}`, `s${String(w.status)[0]}`);
+}));
+
+// ------------------------------------------------------------ wiring
+
+temperatureEl.addEventListener('input', () => { $('temperature-value').textContent = parseFloat(temperatureEl.value).toFixed(1); });
+promptEl.addEventListener('input', () => updateContextMeter(promptEl.value));
+sendButton.addEventListener('click', sendTyped);
+promptEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTyped(); }
+});
+$('reset').addEventListener('click', () => {
+  history = [{ role: 'system', content: SYSTEM_PROMPT }];
+  chatEl.innerHTML = '<div class="empty-state" id="empty-state">New conversation. Send a message.</div>';
+  updateContextMeter();
+  promptEl.focus();
+});
+$('key-save').addEventListener('click', useKey);
+keyEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') useKey(); });
+$('key-show').addEventListener('click', () => {
+  const hidden = keyEl.type === 'password';
+  keyEl.type = hidden ? 'text' : 'password';
+  $('key-show').textContent = hidden ? 'Hide' : 'Show';
+});
+$('health-refresh').addEventListener('click', refreshHealth);
+
+refreshHealth();
+if (apiKey) useKey();
+setInterval(() => { if (!document.hidden) refreshStats(); }, 2000);
+promptEl.focus();
+</script>
+</body>
+</html>
