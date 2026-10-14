@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local LLM Optimization</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --chip-bg: #eef0ff;
+    --code-bg: #f0f1f4;
+    --ok: #16a34a;
+    --ok-bg: rgba(22, 163, 74, 0.12);
+    --err: #dc2626;
+    --err-bg: rgba(220, 38, 38, 0.1);
+    --accent: #0d9488;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1c1f26;
+      --border: #2c3038;
+      --text: #e7e9ec;
+      --text-muted: #9aa1ac;
+      --primary: #6366f1;
+      --primary-hover: #7c7ff2;
+      --chip-bg: #262a40;
+      --code-bg: #262a33;
+      --ok: #22c55e;
+      --ok-bg: rgba(34, 197, 94, 0.14);
+      --err: #f87171;
+      --err-bg: rgba(248, 113, 113, 0.12);
+      --accent: #2dd4bf;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1250px;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 2rem;
+  }
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  header p { color: var(--text-muted); margin: 0 0 0.25rem; font-size: 0.95rem; }
+  .status { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: center; font-size: 0.85rem; margin-top: 0.4rem; }
+  .pill { border-radius: 999px; padding: 0.15rem 0.6rem; background: var(--code-bg); overflow-wrap: anywhere; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.bad { background: var(--err-bg); color: var(--err); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    min-width: 0;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .card h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
+
+  textarea, select {
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.4rem 0.55rem;
+    max-width: 100%;
+  }
+  textarea { width: 100%; min-height: 4rem; resize: vertical; }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.7rem; flex-wrap: wrap; }
+  .controls { display: flex; gap: 0.9rem; flex-wrap: wrap; align-items: center; }
+  .controls label { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; }
+  .hint { color: var(--text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+  button {
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .primary { background: var(--primary); color: #fff; }
+  .primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .secondary { background: var(--chip-bg); color: var(--primary); }
+  .link { background: none; color: var(--primary); padding: 0 0.2rem; font-size: 0.85rem; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  th, td { text-align: left; padding: 0.5rem 0.45rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  th label { display: flex; gap: 0.35rem; align-items: center; text-transform: none; letter-spacing: 0; font-size: 0.85rem; color: var(--text); font-weight: 700; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .profiles td:first-child, .summary td:first-child { color: var(--text-muted); white-space: nowrap; }
+  .profiles td { min-width: 9.5rem; }
+  .profiles select { width: 100%; }
+  .summary td.group { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding-top: 0.9rem; color: var(--text); }
+  .summary td.best { color: var(--ok); font-weight: 700; }
+  tr.case { cursor: pointer; }
+  tr.case:hover td { background: var(--code-bg); }
+  tr.case.active td { background: var(--chip-bg); }
+  .q { font-weight: 600; }
+  .sub { color: var(--text-muted); font-size: 0.78rem; margin-top: 0.2rem; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .bad { color: var(--err); font-weight: 700; }
+  .bar { display: inline-block; height: 0.5rem; border-radius: 4px; vertical-align: middle; margin-right: 0.35rem; background: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; }
+
+  .answers { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
+  .answer { border-top: 4px solid var(--accent); margin-bottom: 0; }
+  .answer h3 { margin: 0 0 0.2rem; font-size: 0.98rem; }
+  .answer h3 code { font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+  .meta { color: var(--text-muted); font-size: 0.76rem; margin-bottom: 0.5rem; font-variant-numeric: tabular-nums; }
+  .text { white-space: pre-wrap; line-height: 1.5; font-size: 0.9rem; overflow-wrap: anywhere; }
+  .text .cite { color: var(--primary); font-weight: 700; }
+  .text .cite.invalid { color: var(--err); text-decoration: line-through; }
+  .error { color: var(--err); font-weight: 600; overflow-wrap: anywhere; }
+  .empty { color: var(--text-muted); font-style: italic; }
+  .pending { color: var(--text-muted); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; }
+  .fact { font-size: 0.72rem; border-radius: 999px; padding: 0.15rem 0.55rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .fact.yes { background: var(--ok-bg); color: var(--ok); }
+  .fact.no { background: var(--err-bg); color: var(--err); }
+
+  details { margin-top: 0.7rem; }
+  summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; }
+  .run { border-left: 3px solid var(--border); padding-left: 0.6rem; margin-top: 0.6rem; }
+  pre { white-space: pre-wrap; margin: 0.4rem 0 0; font-size: 0.74rem; max-height: 18rem; overflow: auto; background: var(--code-bg); border-radius: 9px; padding: 0.55rem; }
+  .src { background: var(--code-bg); border-radius: 9px; padding: 0.45rem 0.65rem; margin-top: 0.4rem; font-size: 0.8rem; }
+  .src.expected { outline: 2px solid var(--ok); }
+  .src .rank { font-weight: 700; color: var(--primary); margin-right: 0.4rem; }
+  .expect { background: var(--chip-bg); border-radius: 10px; padding: 0.65rem 0.8rem; font-size: 0.88rem; margin-bottom: 1rem; }
+  .expect b { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 0.2rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Local LLM Optimization</h1>
+  <p>Lesson 28's local RAG, one task, five profiles: parameters, prompt template and quantization changed one at a time</p>
+  <p class="hint" id="config">loading…</p>
+  <div class="status"><span class="pill" id="ollama">Ollama: checking…</span><button class="link" id="recheck" title="Check again">↻</button></div>
+</header>
+
+<div class="card">
+  <div class="card-head"><h2>Profiles</h2><span class="hint">each one changes one thing against the one on its left · untick to skip</span></div>
+  <div class="table-wrap"><table class="profiles" id="profiles"></table></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Ask</h2><span class="hint">every ticked profile answers, one after another, on the same five chunks</span></div>
+  <textarea id="question" placeholder="e.g. Which port does a deployed lesson get?"></textarea>
+  <div class="actions">
+    <div class="controls">
+      <label>runs per question <select id="runs"></select></label>
+    </div>
+    <div class="controls">
+      <button class="secondary" id="ask">Ask</button>
+      <button class="primary" id="run-all">Run all 10 on ticked profiles</button>
+    </div>
+  </div>
+  <div class="hint" style="margin-top:0.6rem">Run all: for each profile, every model is unloaded, the profile's model is cold-loaded with its <code>num_ctx</code> (load time and memory from <code>/api/ps</code>), then the 10 control questions are asked.</div>
+</div>
+
+<div id="expect"></div>
+<div class="answers" id="answers"></div>
+
+<div class="card" style="margin-top:1rem">
+  <div class="card-head"><h2>Before → after, over the control questions</h2><span class="hint" id="summary-meta">run the control questions first</span></div>
+  <div class="table-wrap"><table class="summary" id="summary"></table></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Control questions</h2><span class="hint">facts stated · runs citing the expected source · time. Click a row for the answers.</span></div>
+  <div class="table-wrap"><table id="cases"></table></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Retrieval (shared by every profile)</h2><span class="hint" id="retrieval-meta"></span></div>
+  <div id="retrieval" class="hint empty">The five retrieved chunks will show here.</div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sec = (ms) => (ms / 1000).toFixed(2) + " s";
+const pct = (x) => Math.round(x * 100) + "%";
+const gb = (b) => (b / 1e9).toFixed(2) + " GB";
+const mean = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+const PROMPTS = { lesson28: "lesson 28: rules in the system prompt", tuned: "tuned: rules + worked example + reminder" };
+let cfg = { profiles: [] };
+let cases = [];
+let pulled = [];
+const results = {};   // profile id → case id → answer
+const warm = {};      // profile id → warm-up
+let free = null;      // profile id → answer to a free question
+let active = null;
+let busy = false;
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  return res.json();
+}
+
+function setBusy(on) {
+  busy = on;
+  $("ask").disabled = on;
+  $("run-all").disabled = on;
+}
+
+const ticked = () => cfg.profiles.filter((p) => $("use-" + p.id)?.checked);
+const modelOf = (p) => $("model-" + p.id)?.value || p.model;
+const runs = () => Number($("runs").value) || 1;
+
+function renderProfiles() {
+  const ps = cfg.profiles;
+  const row = (label, f) => `<tr><td>${label}</td>${ps.map((p) => `<td>${f(p)}</td>`).join("")}</tr>`;
+  $("profiles").innerHTML =
+    `<thead><tr><th></th>${ps.map((p) => `<th><label><input type="checkbox" id="use-${p.id}" checked> ${esc(p.name)}</label></th>`).join("")}</tr></thead><tbody>` +
+    row("changes", (p) => `<span class="sub">${esc(p.change)}</span>`) +
+    row("model", (p) => `<select id="model-${p.id}"></select>`) +
+    row("quantization · file", (p) => `<span id="quant-${p.id}" class="hint"></span>`) +
+    row("prompt", (p) => esc(PROMPTS[p.prompt] || p.prompt)) +
+    row("temperature", (p) => p.temperature == null ? '<span class="hint">not sent (Ollama: 0.8)</span>' : p.temperature) +
+    row("seed", (p) => p.seed ?? '<span class="hint">–</span>') +
+    row("num_ctx", (p) => p.num_ctx) +
+    row("num_predict", (p) => p.num_predict ?? '<span class="hint">no cap</span>') +
+    "</tbody>";
+  for (const p of ps) {
+    $("model-" + p.id).onchange = () => showQuant(p);
+    $("use-" + p.id).onchange = renderAll;
+  }
+  fillModels();
+}
+
+function fillModels() {
+  const names = pulled.map((m) => m.name);
+  for (const p of cfg.profiles) {
+    const select = $("model-" + p.id);
+    const current = select.value || p.model;
+    const list = names.includes(p.model) ? [...names] : [p.model, ...names];
+    if (!list.includes(current)) list.unshift(current);
+    select.innerHTML = list.map((m) => `<option value="${esc(m)}"${m === current ? " selected" : ""}>${esc(m)}${names.includes(m) ? "" : " (not pulled)"}</option>`).join("");
+    showQuant(p);
+  }
+}
+
+function showQuant(p) {
+  const name = modelOf(p);
+  const m = pulled.find((x) => x.name === name);
+  $("quant-" + p.id).innerHTML = m
+    ? `${esc(m.quantization_level)} · ${esc(m.parameter_size)} · ${gb(m.size)}`
+    : `<span class="bad">not pulled</span> <code>ollama pull ${esc(name)}</code>`;
+}
+
+function cite(text, run) {
+  const bad = new Set(run.score?.invalid_cites || []);
+  return esc(text).replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (all, nums) => {
+    const invalid = nums.split(",").some((n) => bad.has(Number(n.trim())));
+    return `<span class="cite${invalid ? " invalid" : ""}" title="${invalid ? "no such fragment" : ""}">${all}</span>`;
+  });
+}
+
+function runMeta(run) {
+  if (run.error) return "";
+  const parts = [sec(run.llm_ms), `${run.prompt_tokens} → ${run.completion_tokens} tok`, `${run.gen_tokens_per_sec} tok/s`, `prefill ${sec(run.prefill_ms)}`, `load ${sec(run.load_ms)}`];
+  if (run.truncated) parts.push('<span class="bad">cut by num_predict</span>');
+  return parts.join(" · ");
+}
+
+function factChips(score) {
+  if (!score) return "";
+  const chips = score.facts.map((f) => `<span class="fact ${f.found ? "yes" : "no"}">${f.found ? "✓" : "✗"} ${esc(f.fact)}</span>`);
+  chips.push(`<span class="fact ${score.cited_expected ? "yes" : "no"}">${score.cited_expected ? "✓" : "✗"} cites the source</span>`);
+  return '<div class="facts">' + chips.join("") + "</div>";
+}
+
+function runBlock(run) {
+  return (run.error ? `<div class="error">${esc(run.error)}</div>` : `<div class="text">${cite(run.text, run)}</div>`) + factChips(run.score);
+}
+
+function answerCard(p, a) {
+  let html = `<div class="card answer"><h3>${esc(p.name)}`;
+  if (a === "pending") return html + `</h3><div class="text pending">thinking…</div></div>`;
+  if (!a) return html + `</h3><div class="text empty">not asked yet</div></div>`;
+  html += ` <code>${esc(a.model)}</code></h3>`;
+  if (a.error) return html + `<div class="error">${esc(a.error)}</div></div>`;
+  const [first, ...rest] = a.runs;
+  html += `<div class="meta">${runMeta(first)}</div>`;
+  if (a.stability.runs > 1) html += `<div class="meta">${a.stability.runs} runs · ${a.stability.distinct_answers} distinct · ${a.stability.errors} errors</div>`;
+  html += runBlock(first);
+  if (rest.length) html += `<details><summary>Other runs (${rest.length})</summary>` + rest.map((r, i) => `<div class="run"><div class="meta">run ${i + 2} · ${runMeta(r)}</div>${runBlock(r)}</div>`).join("") + "</details>";
+  html += `<details><summary>Exact request</summary><pre>${esc(JSON.stringify({ model: a.model, options: a.options }, null, 1))}</pre>` +
+    a.messages.map((m) => `<pre><b>${esc(m.role)}</b>\n${esc(m.content)}</pre>`).join("") + "</details>";
+  return html + "</div>";
+}
+
+function shown(pid) { return active ? results[pid]?.[active] : free?.[pid]; }
+
+function renderAnswers() {
+  const kase = cases.find((c) => c.id === active);
+  $("expect").innerHTML = kase ? `<div class="expect"><b>Expected answer · ${esc(kase.id)}</b>${esc(kase.expect)}
+    <div class="sub">Source: ${kase.sources.map((s) => `${esc(s.file)} — ${esc(s.section)}`).join("; ")}</div></div>` : "";
+  const ps = ticked();
+  $("answers").innerHTML = (active || free) ? ps.map((p) => answerCard(p, shown(p.id))).join("") : "";
+  const any = ps.map((p) => shown(p.id)).find((a) => a && a !== "pending" && !a.error);
+  if (!any) return;
+  const expected = new Set((any.case?.sources || []).map((s) => s.file));
+  $("retrieval-meta").textContent = `${any.sources.length} chunks in ${any.retrieve_ms} ms · ${cfg.embedder}` +
+    (any.source_retrieved == null ? "" : any.source_retrieved ? " · expected source found ✓" : " · expected source missing ✗");
+  $("retrieval").className = "";
+  $("retrieval").innerHTML = any.sources.map((h) => `<div class="src ${expected.has(h.source) ? "expected" : ""}">
+    <span class="rank">[${h.rank}]</span><b>${esc(h.source)}</b> — ${esc(h.section)} <span class="hint">${h.score.toFixed(3)} · ≈${h.tokens} tok</span>
+    <details><summary>text</summary><pre>${esc(h.text)}</pre></details></div>`).join("");
+}
+
+function caseCell(a) {
+  if (!a) return '<span class="hint">–</span>';
+  if (a === "pending") return '<span class="pending">…</span>';
+  if (a.error) return '<span class="bad">error</span>';
+  const s = a.stability;
+  if (s.fact_mean == null) return `<span class="bad" title="${esc(a.runs[0]?.error)}">error</span>`;
+  const total = a.runs[0].score.total;
+  const ok = s.runs - s.errors;
+  const cited = a.runs.filter((r) => !r.error && r.score.cited_expected).length;
+  const cls = cited === ok ? "ok" : cited === 0 ? "bad" : "";
+  return `<span class="bar" style="width:${Math.round(s.fact_mean * 40)}px"></span>${(s.fact_mean * total).toFixed(s.runs > 1 ? 1 : 0)}/${total}` +
+    `<div class="sub">cited <span class="${cls}">${cited}/${ok}</span> · ${sec(s.ms_mean)}${s.runs > 1 ? ` · ${s.distinct_answers} distinct` : ""}</div>`;
+}
+
+function renderCases() {
+  const ps = ticked();
+  $("cases").innerHTML = `<thead><tr><th>#</th><th>Question</th>${ps.map((p) => `<th>${esc(p.id)}</th>`).join("")}</tr></thead><tbody>` +
+    cases.map((c) => `<tr class="case ${active === c.id ? "active" : ""}" data-id="${c.id}">
+      <td>${c.id}</td><td><div class="q">${esc(c.question)}</div><div class="sub">${esc(c.expect)}</div></td>
+      ${ps.map((p) => `<td class="num">${caseCell(results[p.id]?.[c.id])}</td>`).join("")}</tr>`).join("") + "</tbody>";
+  document.querySelectorAll("tr.case").forEach((tr) => tr.onclick = () => openCase(tr.dataset.id));
+}
+
+function summarize(pid) {
+  const as = cases.map((c) => results[pid]?.[c.id]).filter((a) => a && a !== "pending" && !a.error);
+  if (!as.length) return null;
+  const all = as.flatMap((a) => a.runs);
+  const ok = all.filter((r) => !r.error);
+  const sc = ok.map((r) => r.score);
+  return {
+    n: as.length,
+    facts: mean(sc.map((s) => s.fact_score)),
+    cited: sc.filter((s) => s.cited_expected).length / (ok.length || 1),
+    citedText: `${sc.filter((s) => s.cited_expected).length}/${ok.length}`,
+    any: `${sc.filter((s) => s.cited.length > 0).length}/${ok.length}`,
+    invalid: sc.reduce((x, s) => x + s.invalid_cites.length, 0),
+    truncated: `${ok.filter((r) => r.truncated).length}/${ok.length}`,
+    time: mean(ok.map((r) => r.llm_ms)),
+    gen: mean(ok.map((r) => r.gen_tokens_per_sec)),
+    prefill: mean(ok.map((r) => r.prefill_ms)),
+    tokens: mean(ok.map((r) => r.completion_tokens)),
+    promptMax: ok.length ? Math.max(...ok.map((r) => r.prompt_tokens)) : null,
+    errors: `${all.length - ok.length}/${all.length}`,
+    same: `${as.filter((a) => a.stability.errors === 0 && a.stability.distinct_answers === 1).length}/${as.length}`,
+    varied: `${as.filter((a) => a.stability.fact_min !== a.stability.fact_max).length}/${as.length}`,
+  };
+}
+
+function renderSummary() {
+  const ps = ticked();
+  const S = Object.fromEntries(ps.map((p) => [p.id, summarize(p.id)]));
+  const done = ps.map((p) => S[p.id]?.n || 0);
+  $("summary-meta").textContent = done.some((n) => n) ? `questions done per profile: ${done.join(" · ")}` : "run the control questions first";
+  const W = (p) => (warm[p.id] && warm[p.id] !== "pending" && !warm[p.id].error ? warm[p.id] : null);
+  // [label, value(p) → [shown, number for "best"], "max" | "min" | null]
+  const rows = [
+    ["Quality"],
+    ["expected facts stated", (p) => S[p.id]?.facts == null ? null : [pct(S[p.id].facts), S[p.id].facts], "max"],
+    ["answers citing the expected source", (p) => S[p.id] ? [S[p.id].citedText, S[p.id].cited] : null, "max"],
+    ["answers with any [n] citation", (p) => S[p.id] ? [S[p.id].any] : null],
+    ["citations of fragments that don't exist", (p) => S[p.id] ? [String(S[p.id].invalid), S[p.id].invalid] : null, "min"],
+    ["answers cut by num_predict", (p) => S[p.id] ? [S[p.id].truncated] : null],
+    ["Speed"],
+    ["time per answer", (p) => S[p.id]?.time == null ? null : [sec(S[p.id].time), S[p.id].time], "min"],
+    ["generation tok/s", (p) => S[p.id]?.gen == null ? null : [S[p.id].gen.toFixed(1), S[p.id].gen], "max"],
+    ["prefill (reading the prompt)", (p) => S[p.id]?.prefill == null ? null : [sec(S[p.id].prefill), S[p.id].prefill], "min"],
+    ["answer length, tokens", (p) => S[p.id]?.tokens == null ? null : [S[p.id].tokens.toFixed(0)]],
+    ["longest prompt / num_ctx", (p) => S[p.id]?.promptMax == null ? null : [`${S[p.id].promptMax} / ${p.num_ctx}`]],
+    ["cold load", (p) => W(p) ? [sec(W(p).load_ms), W(p).load_ms] : null, "min"],
+    ["Resources"],
+    ["in memory (ollama ps)", (p) => W(p)?.loaded ? [gb(W(p).loaded.size), W(p).loaded.size] : null, "min"],
+    ["of it on the GPU", (p) => W(p)?.loaded ? [gb(W(p).loaded.size_vram)] : null],
+    ["loaded context", (p) => W(p)?.loaded ? [String(W(p).loaded.context_length)] : null],
+    ["model file · quantization", (p) => W(p) ? [`${W(p).disk_bytes ? gb(W(p).disk_bytes) : "?"} · ${W(p).quantization || "?"}`, W(p).disk_bytes] : null],
+    ["Stability"],
+    ["failed calls", (p) => S[p.id] ? [S[p.id].errors] : null],
+    ["questions with one answer across runs", (p) => S[p.id] ? [S[p.id].same] : null],
+    ["questions whose fact score changed", (p) => S[p.id] ? [S[p.id].varied] : null],
+  ];
+  const head = `<thead><tr><th></th>${ps.map((p) => `<th>${esc(p.name)}<div class="sub">${esc(W(p)?.model || modelOf(p))}</div></th>`).join("")}</tr></thead>`;
+  $("summary").innerHTML = head + "<tbody>" + rows.map(([label, f, best]) => {
+    if (!f) return `<tr><td class="group" colspan="${ps.length + 1}">${label}</td></tr>`;
+    const vals = ps.map((p) => (warm[p.id] === "pending" && label === "cold load" ? ['<span class="pending">loading…</span>'] : f(p)));
+    const nums = vals.map((v) => (v && typeof v[1] === "number" ? v[1] : null)).filter((x) => x != null);
+    const target = best && new Set(nums).size > 1 ? (best === "max" ? Math.max(...nums) : Math.min(...nums)) : null;
+    return `<tr><td>${label}</td>${vals.map((v) => `<td class="num${target != null && v && v[1] === target ? " best" : ""}">${v ? v[0] : "–"}</td>`).join("")}</tr>`;
+  }).join("") + "</tbody>";
+}
+
+function renderAll() {
+  renderAnswers();
+  renderCases();
+  renderSummary();
+}
+
+async function askCase(p, id) {
+  (results[p.id] ??= {})[id] = "pending";
+  renderAll();
+  let a;
+  try {
+    a = await api("/api/ask", { case_id: id, profile: p.id, model: modelOf(p), runs: runs() });
+  } catch (e) {
+    a = { error: String(e), runs: [] };
+  }
+  results[p.id][id] = a;
+  renderAll();
+}
+
+async function openCase(id) {
+  active = id;
+  free = null;
+  $("question").value = cases.find((c) => c.id === id).question;
+  renderAll();
+  if (busy) return;
+  const missing = ticked().filter((p) => !results[p.id]?.[id]);
+  if (!missing.length) return;
+  setBusy(true);
+  try { for (const p of missing) await askCase(p, id); } finally { setBusy(false); }
+}
+
+$("ask").onclick = async () => {
+  const question = $("question").value.trim();
+  const kase = cases.find((c) => c.question === question);
+  setBusy(true);
+  try {
+    if (kase) {
+      active = kase.id;
+      free = null;
+      for (const p of ticked()) await askCase(p, kase.id);
+      return;
+    }
+    active = null;
+    free = {};
+    for (const p of ticked()) {
+      free[p.id] = "pending";
+      renderAll();
+      try {
+        free[p.id] = await api("/api/ask", { question, profile: p.id, model: modelOf(p), runs: runs() });
+      } catch (e) {
+        free[p.id] = { error: String(e), runs: [] };
+      }
+      renderAll();
+    }
+  } finally {
+    setBusy(false);
+  }
+};
+
+$("run-all").onclick = async () => {
+  setBusy(true);
+  try {
+    for (const p of ticked()) {
+      warm[p.id] = "pending";
+      renderSummary();
+      try {
+        warm[p.id] = await api("/api/warmup", { profile: p.id, model: modelOf(p) });
+      } catch (e) {
+        warm[p.id] = { error: String(e) };
+      }
+      for (const c of cases) {
+        active = c.id;
+        free = null;
+        $("question").value = c.question;
+        await askCase(p, c.id);
+      }
+    }
+  } finally {
+    setBusy(false);
+    checkStatus();
+  }
+};
+
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("ask").click();
+});
+
+async function checkStatus() {
+  const pill = $("ollama");
+  pill.className = "pill";
+  pill.textContent = "Ollama: checking…";
+  try {
+    const st = await api("/api/status");
+    if (st.error) {
+      pill.className = "pill bad";
+      pill.textContent = "Ollama ✗ " + st.error;
+    } else {
+      pulled = st.models;
+      const loaded = st.loaded.map((m) => `${m.name} ${gb(m.size)} ctx ${m.context_length}`).join(", ") || "nothing";
+      pill.className = "pill ok";
+      pill.textContent = `Ollama ${st.version} ✓ ${st.host} · ${st.models.length} pulled · in memory: ${loaded}`;
+    }
+  } catch (e) {
+    pill.className = "pill bad";
+    pill.textContent = "Ollama ✗ " + e;
+  }
+  fillModels();
+}
+$("recheck").onclick = checkStatus;
+
+(async () => {
+  cfg = await api("/api/config");
+  $("config").textContent = `task: lesson 22's 10 control questions over ${cfg.documents} documents → ${cfg.chunks} chunks (${cfg.embedder}), top-${cfg.top_k} chunks for every profile`;
+  for (let n = 1; n <= cfg.max_runs; n++) $("runs").add(new Option(String(n), String(n), false, n === 1));
+  renderProfiles();
+  await checkStatus();
+  cases = await api("/api/cases");
+  renderAll();
+})();
+</script>
+</body>
+</html>
