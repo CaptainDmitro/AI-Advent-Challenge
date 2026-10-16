@@ -158,6 +158,85 @@ review or the posting failed, never because of findings. This is what
 - The PR comment starts with `<!-- ai-code-review -->`; the next run edits
   the comment with that marker instead of adding one.
 
+## Lesson 33: support assistant
+
+### HTTP
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| `GET` | `/` | | the support page |
+| `POST` | `/api/ask` | `{"message": "...", "ticket_id": "T-1001"}` (`ticket_id` optional) | an answer (below) |
+| `GET` | `/api/tickets` | | `{tickets, error}`: `list_tickets` through the MCP server |
+| `GET` | `/api/context?ticket_id=T-1001` | | `{ticket, user, hints, calls, error}`: the automatic `get_ticket` + `get_user` |
+| `GET` | `/api/status` | | knowledge base, MCP server and tools, CRM file and counts, model |
+| `POST` | `/api/reset` | | `{ok, error}`: puts `data/crm.json` back |
+| `POST` | `/mcp/crm` | MCP JSON-RPC | the `crm` MCP server (Streamable HTTP) |
+
+### The answer
+
+```json
+{
+  "message": "Почему не работает авторизация?",
+  "ticket_id": "T-1003",
+  "search_query": "why does sign-in not work sign-in SSO_REQUIRED",
+  "answer": "Your company turned on single sign-on ... [1]",
+  "error": null,
+  "ticket": { "id": "T-1003", "user_id": "U-103", "subject": "...", "status": "open", "priority": "high",
+              "channel": "email", "created_at": "...", "updated_at": "...", "tags": ["sign-in"],
+              "messages": [{ "at": "...", "from": "customer", "text": "..." }], "notes": [] },
+  "user": { "id": "U-103", "name": "Chen Wei", "email": "chen.wei@bigcorp.com", "plan": "team",
+            "security": { "email_verified": true, "two_factor": null,
+                          "sso": { "provider": "Okta", "domain": "bigcorp.com", "enforced": true, "enforced_since": "..." },
+                          "failed_logins": 0, "locked": false, "locked_until": null },
+            "login_events": [{ "at": "...", "method": "password", "client": "web", "result": "failed", "code": "SSO_REQUIRED" }],
+            "login_events_total": 4, "tickets": [{ "id": "T-1003", "subject": "...", "status": "open" }] },
+  "context_hints": ["sign-in", "SSO_REQUIRED"],
+  "sources": [{ "n": 1, "chunk_id": "kb/sign-in.md#005", "source": "kb/sign-in.md",
+                "section": "Signing in to Notely › SSO_REQUIRED: your organization requires single sign-on",
+                "score": 0.56, "cited": true, "text": "..." }],
+  "candidates": [{ "chunk_id": "...", "source": "...", "section": "...", "cosine": 0.23, "score": 0.56, "passed": true }],
+  "calls": [
+    { "step": 1, "round": 0, "tool": "get_ticket", "arguments": { "ticket_id": "T-1003" }, "auto": true,
+      "is_error": false, "result": "Ticket T-1003: ...", "structured": {}, "ms": 3 },
+    { "step": 2, "round": 0, "tool": "get_user", "arguments": { "user_id": "U-103" }, "auto": true, "...": "..." }
+  ],
+  "tools": ["get_ticket", "get_user", "get_login_events", "list_tickets", "search_users", "add_ticket_note", "set_ticket_status"],
+  "changed": false,
+  "mcp_url": "http://127.0.0.1:4033/mcp/crm",
+  "mcp_error": null,
+  "llm_rounds": 1,
+  "ms": 3100
+}
+```
+
+- `ticket` and `user` come from the MCP server's structured results, never
+  from the model; `user.login_events` are the last 5, newest first.
+- `context_hints` are the ticket's tags and the error codes of the
+  customer's recent failed sign-ins; they are appended to `search_query`.
+  A question with Cyrillic in it is searched by its English rewrite.
+- `calls` start with the automatic `get_ticket` and `get_user` (`auto:
+  true`, `round: 0`) when a ticket is selected; the rest are the model's own.
+- `changed` is true when `add_ticket_note` or `set_ticket_status` succeeded.
+
+### MCP server `crm`
+
+Every tool returns text for the model plus `structuredContent`. An unknown
+id or a bad argument is a tool result with `isError: true`. Ids are
+normalized: `1001`, `#1001` and `t1001` are `T-1001`; `101` is `U-101`.
+
+| Tool | Arguments | Structured result |
+|---|---|---|
+| `get_ticket` | `ticket_id` | the ticket (as in `ticket` above) |
+| `get_user` | `user_id?` or `email?` | the user (as in `user` above) |
+| `get_login_events` | `user_id`, `limit?` (1–50, default 10), `failed_only?` | `{user_id, events}` |
+| `list_tickets` | `status?` (`open`/`pending`/`resolved`/`closed`), `user_id?`, `limit?` (1–100, default 20) | `{total, tickets: [{id, subject, status, priority, channel, tags, updated_at, user_id, customer, email, plan}]}` |
+| `search_users` | `query` | `{users: [{id, name, email, plan, company}]}` |
+| `add_ticket_note` | `ticket_id`, `text` (≤ 2000 characters) | `{ticket_id, note: {at, author, text}, notes}` |
+| `set_ticket_status` | `ticket_id`, `status`, `note?` | `{ticket_id, from, to}` |
+
+The two write tools save `crm.json` at once (write-then-rename); notes are
+signed `assistant`.
+
 ## MCP in other lessons
 
 | Lesson | Endpoint(s) | Tools |
@@ -168,6 +247,7 @@ review or the posting failed, never because of findings. This is what
 | 20 | `/mcp/crates`, `/mcp/github`, `/mcp/notes` | `search_crates`, `crate_info`; `search_repositories`, `repo_info`; `write_note`, `read_note`, `list_notes` |
 | 31 | `/mcp/project` | `git_branch`, `git_status`, `git_log`, `list_files`, `read_file`, `git_diff` |
 | 32 | `/mcp/project`, and a private one per review over the PR's head | the same 6 as lesson 31 |
+| 33 | `/mcp/crm` | `get_ticket`, `get_user`, `get_login_events`, `list_tickets`, `search_users`, `add_ticket_note`, `set_ticket_status` |
 
 All use Streamable HTTP and accept any `Host` header, so they can be reached
 by IP on the VDS, e.g. with `npx @modelcontextprotocol/inspector`.
