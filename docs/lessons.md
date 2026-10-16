@@ -38,14 +38,17 @@ The root `README.md` has a longer description of each lesson.
 | 29 | `29. Local LLM Optimization` | `local-llm-optimization` | Web | 4029 | five tuning profiles for the 3B model | 28 |
 | 30 | `30. Private LLM Service` | `private-llm-service` | Web | 4030 | an authenticated, rate-limited gateway to Ollama | 26 |
 | 31 | `31. Developer Assistant` | `developer-assistant` | Web | 4031 | `/help` over the repo's docs (RAG) and its git checkout (MCP) | 20, 25 |
+| 32 | `32. AI Code Review` | `ai-code-review` | Web + CLI | 4032 | AI review of every PR: a GitHub Action, RAG over the repo's docs and code, MCP, a PR comment | 31 |
 
 ## Which lessons use what
 
-- **MCP (`rmcp`)**: 16, 17, 18, 19, 20, 31.
+- **MCP (`rmcp`)**: 16, 17, 18, 19, 20, 31, 32.
 - **RAG index (structural chunks + local hashed TF-IDF)**: 21, 22, 23, 24,
-  25, 28, 29, 31.
+  25, 28, 29, 31, 32 (32 indexes code as well as docs).
 - **Ollama instead of a hosted API**: 26, 28, 29, 30.
 - **Files written at runtime** (relative to the service's working directory
   `~/apps/lesson-NN/`): 07 and the agent lessons after it (conversation and memory JSON), 18 (jobs), 19
-  and 20 (notes), 21 (index), 25 (sessions), 30 (`api_keys.txt`), 31 (the
-  git checkout in `repo/`).
+  and 20 (notes), 21 (index), 25 (sessions), 30 (`api_keys.txt`), 31 and 32
+  (the git checkout in `repo/`; 32 also fetches PRs into it and makes
+  temporary worktrees in the system temp folder).
+- **A GitHub Action of its own**: 32 (`.github/workflows/ai-review.yml`).

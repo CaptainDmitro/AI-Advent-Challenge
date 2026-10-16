@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Code Review</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #677085; --line: #e2e5ea;
+    --accent: #2f6fde; --accent-soft: #e8f0fd; --ok: #1f8a4c; --ok-soft: #e5f5ec;
+    --err: #c0392b; --err-soft: #fbeaea; --warn: #9a6700; --warn-soft: #fff4d6;
+    --code: #f1f3f6; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: var(--code); color: var(--muted); font-family: var(--mono); }
+  .badge.branch { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  main { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+  aside { display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .card h2 button { text-transform: none; letter-spacing: 0; font-size: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .pr { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font: inherit; }
+  .pr:hover { border-color: var(--accent); }
+  .pr .num { font-family: var(--mono); color: var(--accent); font-weight: 600; }
+  .pr .meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  form label { font-size: 12px; color: var(--muted); }
+  input { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: 13px var(--mono); }
+  form button, .primary { grid-column: 1 / -1; padding: 8px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  dl { margin: 0; display: grid; grid-template-columns: 80px 1fr; gap: 4px 8px; font-size: 13px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; word-break: break-word; }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .empty { color: var(--muted); font-size: 13px; }
+  #result { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .pipeline { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+  .step { padding: 3px 10px; border-radius: 999px; background: var(--code); color: var(--muted); }
+  .step.done { background: var(--ok-soft); color: var(--ok); }
+  .step.run { background: var(--warn-soft); color: var(--warn); }
+  .counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .count { background: var(--code); border-radius: 8px; padding: 8px; text-align: center; }
+  .count b { display: block; font-size: 22px; }
+  .finding { border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .finding.high { border-left-color: var(--err); }
+  .finding.medium { border-left-color: #e67e22; }
+  .finding.low { border-left-color: #d4ac0d; }
+  .finding .title { font-weight: 600; }
+  .finding .where { font-family: var(--mono); font-size: 12px; }
+  .finding .where a { color: var(--accent); text-decoration: none; }
+  .finding p { margin: 6px 0 0; }
+  .finding .fix { background: var(--ok-soft); border-radius: 6px; padding: 6px 8px; margin-top: 6px; }
+  .cite { display: inline-block; min-width: 18px; padding: 0 4px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 600; text-align: center; cursor: help; margin-right: 3px; }
+  code { font-family: var(--mono); font-size: 12.5px; background: rgba(0,0,0,.06); padding: 1px 4px; border-radius: 4px; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+  .tabs button { border: none; background: none; padding: 6px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font: inherit; }
+  .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td, th { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  tr.passed td:first-child { border-left: 3px solid var(--ok); }
+  details { margin: 4px 0; }
+  summary { cursor: pointer; }
+  pre { white-space: pre-wrap; font: 11.5px/1.45 var(--mono); background: var(--code); padding: 8px; border-radius: 6px; max-height: 360px; overflow: auto; margin: 6px 0 0; }
+  .error { background: var(--err-soft); color: var(--err); border-radius: 8px; padding: 10px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖 AI Code Review</h1>
+  <span class="badge" id="repo-name">…</span>
+  <span class="badge branch" id="branch">⎇ …</span>
+  <span class="badge" id="repo-state">…</span>
+  <span class="badge" id="model">…</span>
+</header>
+<main>
+  <aside>
+    <div class="card">
+      <h2>Open pull requests <button id="reload">reload</button></h2>
+      <div id="pulls" class="empty">loading…</div>
+    </div>
+    <div class="card">
+      <h2>Or two revisions</h2>
+      <form id="refs">
+        <div><label for="base">base</label><input id="base" value="master"></div>
+        <div><label for="head">head</label><input id="head" value="HEAD"></div>
+        <button id="go">Review base...head</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>How it works</h2>
+      <div class="empty">
+        1. <b>diff</b>: <code>git diff base...head</code>, parsed into files, hunks and line numbers.<br>
+        2. <b>RAG</b>: the whole repo at the head (docs + code) indexed; a query per hunk; rules from <code>docs/conventions.md</code> pinned.<br>
+        3. <b>MCP</b>: the model can <code>read_file</code> etc. on the PR's head.<br>
+        4. <b>LLM</b>: JSON findings: bugs, architecture, recommendations.<br>
+        5. <b>check</b>: a finding must point into the diff.<br>
+        The GitHub Action posts the same review as a PR comment. This page never posts.
+      </div>
+    </div>
+  </aside>
+  <section id="result">
+    <div class="card"><div class="empty">Pick a pull request, or review two revisions of the checkout.</div></div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+const ICON = { high: "🔴", medium: "🟠", low: "🟡" };
+const SECTIONS = [
+  ["bug", "🐞 Potential bugs", "No potential bugs found."],
+  ["architecture", "🏛 Architecture", "No architecture issues found."],
+  ["recommendation", "💡 Recommendations", "No recommendations."],
+];
+const STEPS = ["diff", "worktree", "RAG index", "retrieval", "MCP", "LLM", "check"];
+let repoName = "";
+let busy = false;
+
+async function loadStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    repoName = s.github.repo;
+    $("repo-name").textContent = s.github.repo;
+    $("model").textContent = s.model;
+    const state = s.repo.state.state;
+    $("repo-state").textContent = state === "ready" ? "checkout ready" : state === "cloning" ? "cloning…" : "no checkout";
+    $("repo-state").className = "badge " + (state === "ready" ? "ok" : state === "cloning" ? "warn" : "err");
+    $("branch").textContent = s.branch ? `⎇ ${s.branch.branch} @ ${s.branch.head}` : "⎇ unknown";
+    if (state === "cloning") setTimeout(loadStatus, 3000);
+  } catch (e) {
+    $("repo-state").textContent = "status failed";
+  }
+}
+
+async function loadPulls() {
+  $("pulls").innerHTML = '<span class="empty">loading…</span>';
+  try {
+    const r = await (await fetch("/api/pulls")).json();
+    if (r.error) { $("pulls").innerHTML = `<span class="empty">${esc(r.error)}</span>`; return; }
+    if (!r.pulls.length) { $("pulls").innerHTML = '<span class="empty">No open pull requests.</span>'; return; }
+    $("pulls").className = "";
+    $("pulls").innerHTML = r.pulls.map((p) => `
+      <button class="pr" data-pr="${p.number}">
+        <span class="num">#${p.number}</span> ${esc(p.title)}
+        <div class="meta">${esc(p.head_ref)} → ${esc(p.base_ref)} · ${esc(p.author)}${p.draft ? " · draft" : ""}</div>
+      </button>`).join("");
+    for (const b of $("pulls").querySelectorAll(".pr")) {
+      b.addEventListener("click", () => run({ pr: Number(b.dataset.pr) }, `PR #${b.dataset.pr}`));
+    }
+  } catch (e) {
+    $("pulls").innerHTML = `<span class="empty">${esc(e)}</span>`;
+  }
+}
+
+function pipeline(active) {
+  return `<div class="pipeline">${STEPS.map((s, i) => `<span class="step ${i < active ? "done" : i === active ? "run" : ""}">${s}</span>`).join("")}</div>`;
+}
+
+async function run(body, label) {
+  if (busy) return;
+  busy = true;
+  for (const b of document.querySelectorAll("button")) b.disabled = true;
+  let step = 0;
+  const show = () => { $("result").innerHTML = `<div class="card"><h2>Reviewing ${esc(label)}…</h2>${pipeline(step)}</div>`; };
+  show();
+  const timer = setInterval(() => { if (step < STEPS.length - 2) { step++; show(); } }, 1500);
+  try {
+    const r = await (await fetch("/api/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+    render(r, label);
+  } catch (e) {
+    $("result").innerHTML = `<div class="error">Request failed: ${esc(e)}</div>`;
+  } finally {
+    clearInterval(timer);
+    busy = false;
+    for (const b of document.querySelectorAll("button")) b.disabled = false;
+  }
+}
+
+function fileLink(r, file, line) {
+  const label = line ? `${file}:${line}` : file;
+  if (!r.target || !r.target.head_sha) return esc(label);
+  const path = file.split("/").map(encodeURIComponent).join("/");
+  return `<a target="_blank" rel="noopener" href="https://github.com/${esc(repoName)}/blob/${r.target.head_sha}/${path}${line ? "#L" + line : ""}">${esc(label)}</a>`;
+}
+
+function cites(r, sources) {
+  return sources.map((n) => {
+    const f = r.fragments.find((x) => x.n === n);
+    return f ? `<span class="cite" title="${esc(f.source + " › " + f.section)}">${n}</span>` : "";
+  }).join("");
+}
+
+function render(r, label) {
+  const t = r.target;
+  const head = t ? `${t.pr ? `PR #${t.pr}: ${esc(t.title)}` : esc(t.title)} <span class="badge">${esc(t.base_sha.slice(0, 7))}...${esc(t.head_sha.slice(0, 7))}</span>` : esc(label);
+  let html = `<div class="card"><h2>${head}</h2>`;
+  if (r.error) {
+    html += `<div class="error">${esc(r.error)}</div></div>`;
+    $("result").innerHTML = html;
+    return;
+  }
+  html += pipeline(STEPS.length);
+  html += `<p>${inline(r.summary || "")}</p>`;
+  const n = (cat) => r.findings.filter((f) => f.category === cat).length;
+  html += `<div class="counts">${SECTIONS.map(([cat, title]) => `<div class="count"><b>${n(cat)}</b>${title}</div>`).join("")}</div>`;
+  html += `<div class="empty" style="margin-top:8px">${r.stats.files} files (+${r.stats.additions} −${r.stats.deletions}), ${r.stats.reviewed} reviewed · ${r.fragments.length} context fragments · ${r.calls.length} MCP calls · ${r.llm_rounds} LLM rounds · ${(r.ms / 1000).toFixed(1)} s${r.checkout ? " · " + r.checkout : ""}</div></div>`;
+  for (const [cat, title, none] of SECTIONS) {
+    const items = r.findings.filter((f) => f.category === cat);
+    html += `<div class="card"><h2>${title}</h2>`;
+    html += items.length ? items.map((f) => `
+      <div class="finding ${f.severity}">
+        <div class="title">${ICON[f.severity] || ""} ${inline(f.title)}</div>
+        <div class="where">${fileLink(r, f.file, f.line)}${f.line_outside_diff ? ` <span class="badge warn" title="the model pointed at a line the diff doesn't show">line ${f.line_outside_diff}?</span>` : ""}</div>
+        ${f.details ? `<p>${inline(f.details)}</p>` : ""}
+        ${f.suggestion ? `<div class="fix">💡 ${inline(f.suggestion)}</div>` : ""}
+        ${f.sources.length ? `<p class="empty">context ${cites(r, f.sources)}</p>` : ""}
+      </div>`).join("") : `<div class="empty">${none}</div>`;
+    html += "</div>";
+  }
+  html += `<div class="card"><div class="tabs" id="tabs"></div><div id="tab"></div></div>`;
+  $("result").innerHTML = html;
+  tabs(r);
+}
+
+function tabs(r) {
+  const views = {
+    [`Context (${r.fragments.length})`]: () => {
+      const idx = r.index ? `<p class="empty">Index of the head: ${r.index.documents} files, ${r.index.chunks} chunks (${r.index.doc_chunks} doc, ${r.index.code_chunks} code), ${r.index.built_ms} ms.</p>` : "";
+      return idx + r.fragments.map((f) => `
+        <details><summary><span class="cite">${f.n}</span> <span class="mono">${esc(f.source)}</span> › ${esc(f.section)}
+          <span class="badge">${f.kind}</span> <span class="badge">${f.pinned ? "rules" : f.score.toFixed(2)}</span>${f.cited ? ' <span class="badge ok">cited</span>' : ""}</summary>
+          <div class="empty">lines ${f.start_line}-${f.end_line}${f.found_for ? " · found for " + esc(f.found_for) : ""}</div>
+          <pre>${esc(f.text)}</pre></details>`).join("");
+    },
+    "Candidates": () => `<table><tr><th>fragment</th><th>kind</th><th class="num">score</th><th>note</th></tr>${r.candidates.map((c) => `
+      <tr class="${c.passed ? "passed" : ""}"><td><span class="mono">${esc(c.source)}</span><br>${esc(c.section)}</td><td>${c.kind}</td>
+      <td class="num">${c.score.toFixed(2)}</td><td>${c.passed ? "in the prompt" : esc(c.excluded || "below threshold or no room")}</td></tr>`).join("")}</table>
+      <p class="empty">Queries: ${r.queries.map((q) => `<br><span class="mono">${esc(q.file)} ${esc(q.hunk)}</span>: ${esc(q.text)}`).join("")}</p>`,
+    [`MCP (${r.calls.length})`]: () => (r.calls.length ? r.calls.map((c) => `
+      <details><summary class="mono">${c.step}. ${esc(c.tool)}(${esc(JSON.stringify(c.arguments))}) <span class="badge">round ${c.round}</span>${c.is_error ? ' <span class="badge err">error</span>' : ""}</summary><pre>${esc(c.result)}</pre></details>`).join("")
+      : `<div class="empty">${r.mcp_error ? esc(r.mcp_error) : "The model didn't need any tool."} Tools: ${r.tools.map(esc).join(", ") || "none"}</div>`),
+    [`Files (${r.files.length})`]: () => `<table><tr><th></th><th>file</th><th class="num">+</th><th class="num">−</th><th>note</th></tr>${r.files.map((f) => `
+      <tr><td class="mono">${f.status[0].toUpperCase()}</td><td class="mono">${esc(f.path)}</td><td class="num">${f.additions}</td><td class="num">${f.deletions}</td><td>${f.skipped ? esc(f.skipped) : ""}</td></tr>`).join("")}</table>
+      ${r.not_reviewed.length ? `<p class="error">Not reviewed (too large): ${r.not_reviewed.map(esc).join(", ")}</p>` : ""}`,
+    [`Dropped (${r.dropped.length})`]: () => (r.dropped.length ? r.dropped.map((d) => `<details><summary>${esc(d.reason)}</summary><pre>${esc(JSON.stringify(d.raw, null, 2))}</pre></details>`).join("") : '<div class="empty">Every finding pointed into the diff.</div>'),
+    "PR comment": () => `<p class="empty">What the GitHub Action posts (Markdown):</p><pre>${esc(r.markdown || "")}</pre>`,
+  };
+  const names = Object.keys(views);
+  const show = (name) => {
+    $("tabs").innerHTML = names.map((n) => `<button class="${n === name ? "on" : ""}">${esc(n)}</button>`).join("");
+    $("tabs").querySelectorAll("button").forEach((b, i) => b.addEventListener("click", () => show(names[i])));
+    $("tab").innerHTML = views[name]();
+  };
+  show(names[0]);
+}
+
+$("refs").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const base = $("base").value.trim(), head = $("head").value.trim();
+  run({ base, head }, `${base}...${head}`);
+});
+$("reload").addEventListener("click", loadPulls);
+loadStatus();
+loadPulls();
+</script>
+</body>
+</html>

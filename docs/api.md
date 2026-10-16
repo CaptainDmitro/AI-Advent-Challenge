@@ -93,6 +93,71 @@ never inside `.git`. A revision may not start with `-` or contain `..`.
 with `base` it shows what the branch changed since it left `base`
 (`git diff base...HEAD`).
 
+## Lesson 32: AI code review
+
+### HTTP
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| `GET` | `/` | | the review page |
+| `GET` | `/api/pulls` | | `{pulls: [PullRequest], error}`: the repo's open PRs from the GitHub API |
+| `POST` | `/api/review` | `{"pr": 12}` or `{"base": "master", "head": "HEAD"}` | a review (below); the page never posts |
+| `GET` | `/api/status` | | repo, branch, GitHub repo and token, model, threshold, pinned docs |
+| `POST` | `/mcp/project` | MCP JSON-RPC | lesson 31's `project` server over the service's checkout |
+
+### Command line
+
+`ai-code-review review [--pr N | --base REV --head REV] [--repo-dir DIR] [--post] [--out FILE]`
+prints the Markdown review, appends it to `$GITHUB_STEP_SUMMARY` when set,
+and with `--post` creates or edits the PR comment. Exit code 1 only when the
+review or the posting failed, never because of findings. This is what
+`.github/workflows/ai-review.yml` runs.
+
+### The review reply
+
+```json
+{
+  "target": { "pr": 12, "title": "...", "description": "...", "author": "dev", "url": "...",
+              "base_ref": "master", "head_ref": "feature/x", "base_sha": "<40 hex>", "head_sha": "<40 hex>" },
+  "checkout": "worktree",
+  "files": [{ "path": "07. X/src/main.rs", "old_path": null, "status": "modified", "binary": false,
+              "additions": 3, "deletions": 1, "skipped": null }],
+  "stats": { "files": 2, "reviewed": 2, "additions": 7, "deletions": 1 },
+  "summary": "...",
+  "findings": [{ "category": "bug", "severity": "high", "file": "07. X/src/main.rs", "line": 8,
+                 "title": "...", "details": "...", "suggestion": "...", "sources": [1, 4],
+                 "line_outside_diff": null }],
+  "dropped": [{ "reason": "`src/other.rs` is not a file in this diff", "raw": {} }],
+  "queries": [{ "file": "07. X/src/main.rs", "hunk": "+3,11", "text": "Retry Lesson attempt MAX_RETRIES" }],
+  "fragments": [{ "n": 1, "chunk_id": "docs/conventions.md#000", "source": "docs/conventions.md",
+                  "section": "Conventions › Code", "kind": "doc", "start_line": 34, "end_line": 54,
+                  "score": 1.0, "pinned": true, "found_for": null, "cited": true, "text": "..." }],
+  "candidates": [{ "chunk_id": "...", "source": "...", "section": "...", "kind": "code", "score": 0.41,
+                   "found_for": "...", "passed": true, "excluded": null }],
+  "calls": [{ "step": 1, "batch": 1, "round": 1, "tool": "read_file", "arguments": {"path": "..."},
+              "is_error": false, "result": "...", "ms": 4 }],
+  "tools": ["git_branch", "git_status", "git_log", "list_files", "read_file", "git_diff"],
+  "mcp_error": null, "batches": 1, "not_reviewed": [], "llm_rounds": 2,
+  "index": { "documents": 152, "chunks": 2100, "doc_chunks": 400, "code_chunks": 1700,
+             "embedder": "local:hashed-tfidf-1024", "built_ms": 300 },
+  "markdown": "<!-- ai-code-review -->\n## 🤖 AI code review ...",
+  "posted": { "action": "updated", "id": 123, "url": "https://github.com/.../pull/12#issuecomment-123" },
+  "post_error": null, "error": null, "model": "deepseek-v4-flash", "ms": 21000
+}
+```
+
+- `category` is `bug`, `architecture` or `recommendation`; `severity` is
+  `high`, `medium` or `low`.
+- A finding's `line` is always one the diff shows on the new side;
+  `line_outside_diff` keeps a line the model gave that the diff doesn't
+  show (the finding then applies to the whole file).
+- `sources` are fragment numbers; `fragments[0..]` start with the pinned
+  `docs/conventions.md` chunks.
+- `checkout` is `checkout` when the head was already checked out (the
+  Action) and `worktree` when a temporary worktree at the head was used.
+- The PR comment starts with `<!-- ai-code-review -->`; the next run edits
+  the comment with that marker instead of adding one.
+
 ## MCP in other lessons
 
 | Lesson | Endpoint(s) | Tools |
@@ -102,6 +167,7 @@ with `base` it shows what the branch changed since it left `base`
 | 19 | `/mcp` | `search`, `summarize`, `save_to_file` |
 | 20 | `/mcp/crates`, `/mcp/github`, `/mcp/notes` | `search_crates`, `crate_info`; `search_repositories`, `repo_info`; `write_note`, `read_note`, `list_notes` |
 | 31 | `/mcp/project` | `git_branch`, `git_status`, `git_log`, `list_files`, `read_file`, `git_diff` |
+| 32 | `/mcp/project`, and a private one per review over the PR's head | the same 6 as lesson 31 |
 
 All use Streamable HTTP and accept any `Host` header, so they can be reached
 by IP on the VDS, e.g. with `npx @modelcontextprotocol/inspector`.
@@ -130,7 +196,7 @@ unchanged, followed by one `{"role": "tool", "tool_call_id", "content"}` per
 call. MCP tools become functions by copying the tool's `inputSchema` into
 `parameters` (lesson 20 prefixes the name with `<server>__`).
 
-### Index chunk (lessons 21–25, 28, 29, 31)
+### Index chunk (lessons 21–25, 28, 29, 31, 32)
 
 ```json
 {
@@ -143,6 +209,8 @@ call. MCP tools become functions by copying the tool's `inputSchema` into
 }
 ```
 
+Lesson 32's chunks also have `kind` (`doc` for Markdown, `code` for
+everything else) and `start_line`/`end_line` (1-based, inclusive).
 `chunk_id` is `<source>#<ordinal>`. `section` is the heading path for
 Markdown (`File title › Heading › Subheading`) or the item for Rust
 (`impl Registry`, `fn checksum`). `tokens` is an estimate: about 4 ASCII

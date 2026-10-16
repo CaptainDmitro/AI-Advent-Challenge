@@ -74,6 +74,13 @@ logic (short version: only the highest-numbered lesson folder deploys by
 default; redeploying anything else needs a manual `workflow_dispatch` run
 with a `lessons` input).
 
+`.github/workflows/ai-review.yml` runs on pull requests (lesson 32): it
+builds `32. AI Code Review` from the PR's **base** branch and posts an AI
+review comment on the PR, editing the same comment on every push. It is
+advisory (findings never fail it) and skips fork PRs and drafts. Because it
+builds the reviewer from the base, a change to lesson 32 only affects
+reviews once it is on `master`. See `DEPLOYMENT.md`.
+
 Known, deliberate state — not bugs to "fix" on sight:
 
 - **Lesson 04's deploy fails** and is left that way on purpose: it needs

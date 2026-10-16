@@ -19,10 +19,12 @@ AI-Advent-Challenge/
 │   ├── lessons.md          every lesson: kind, port, topic, what it reuses
 │   └── api.md              HTTP and MCP interfaces, data schemas
 ├── .github/workflows/
-│   └── ci-cd.yml           build, test and deploy (the only CI file)
+│   ├── ci-cd.yml           build, test and deploy
+│   └── ai-review.yml       AI review of every pull request (lesson 32)
 ├── 01. Rust LLM Chat CLI/  one folder per lesson ...
 ├── ...
-└── 31. Developer Assistant/
+├── 31. Developer Assistant/
+└── 32. AI Code Review/
 ```
 
 There is no Cargo workspace. Every lesson folder is an **independent Cargo
@@ -78,6 +80,9 @@ before it:
    3B model, and a private LLM service on the VDS behind a gateway.
 7. **Developer assistant (31)**: RAG over this repository's docs plus an MCP
    server over its git checkout, behind a `/help` command.
+8. **Code review (32)**: lesson 31's RAG and MCP turned on pull requests: a
+   GitHub Action reviews every PR's diff against the repo's docs and code and
+   posts the review as a PR comment.
 
 ## LLM access
 
@@ -89,7 +94,7 @@ variables, and lessons 26–30 talk to Ollama (`OLLAMA_HOST`).
 
 ## Retrieval (RAG)
 
-Lessons 21–25, 28, 29 and 31 share one index design:
+Lessons 21–25, 28, 29, 31 and 32 share one index design:
 
 - the corpus is Markdown (split by headings) and Rust (split by top-level
   items);
@@ -129,3 +134,7 @@ uses `rustls`, so there is no OpenSSL). On the VDS each lesson lives in
 service `ai-advent-lesson-NN` on port `4000 + NN`. Only the highest-numbered
 lesson deploys on a normal push; older ones are redeployed with a manual
 `workflow_dispatch` run. Full details are in `DEPLOYMENT.md`.
+
+A second workflow, `ai-review.yml`, runs on pull requests rather than
+pushes: it builds lesson 32 from the PR's base branch and posts an AI review
+of the PR as a comment. It is advisory and deploys nothing.
