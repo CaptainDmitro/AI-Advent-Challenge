@@ -28,6 +28,13 @@ context the hard way.
 
 ## Repo shape
 
+Project-wide documentation lives in [`docs/`](./docs): `architecture.md`,
+`conventions.md`, `lessons.md` (every lesson's crate, kind and port) and
+`api.md` (HTTP/MCP endpoints and data schemas). Keep it in sync when a
+lesson adds an endpoint, an MCP tool or a convention. Lesson 31 indexes it
+(and compiles it in as a fallback: a new file in `docs/` must also be added
+to `BUILTIN` in `31. Developer Assistant/src/index.rs`, which a test checks).
+
 One folder per course lesson, named `NN. Title` (two-digit, zero-padded,
 e.g. `06. First Agent`). Each folder is an **independent Cargo crate** —
 there is no workspace. Lessons come in two shapes:
@@ -89,6 +96,8 @@ Known, deliberate state — not bugs to "fix" on sight:
 2. Match the README template. Copy an existing lesson's README structure
    and adapt the `## Задание` block to the new assignment text.
 3. Add a row to the root `README.md` table of contents.
+   Add a row to `docs/lessons.md` too, and any new endpoint or MCP tool to
+   `docs/api.md`.
 4. Nothing needs to be registered in the CI workflow — `discover` finds
    every `Cargo.toml` automatically, and a web-app lesson becomes the new
    deploy default the moment it's the highest-numbered folder.
@@ -101,3 +110,5 @@ Known, deliberate state — not bugs to "fix" on sight:
   index.
 - [`DEPLOYMENT.md`](./DEPLOYMENT.md) — deploy architecture, secrets
   inventory, and the pipeline's selection logic in full.
+- [`docs/`](./docs) — architecture, conventions, the lesson table, and
+  API/data schemas.
