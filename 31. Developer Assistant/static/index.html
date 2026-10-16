@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developer Assistant</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #677085; --line: #e2e5ea;
+    --accent: #2f6fde; --accent-soft: #e8f0fd; --ok: #1f8a4c; --ok-soft: #e5f5ec;
+    --err: #c0392b; --err-soft: #fbeaea; --warn: #9a6700; --warn-soft: #fff4d6;
+    --code: #f1f3f6; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: var(--code); color: var(--muted); font-family: var(--mono); }
+  .badge.branch { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; padding: 16px 20px; height: calc(100vh - 58px); }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; height: auto; } }
+  .chat { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 480px; }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 92%; padding: 10px 14px; border-radius: 10px; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; font-family: var(--mono); white-space: pre-wrap; }
+  .msg.bot { align-self: flex-start; background: var(--code); }
+  .msg.bot.error { background: var(--err-soft); color: var(--err); }
+  .msg .meta { margin-top: 8px; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+  .msg h3, .msg h4 { margin: 8px 0 4px; font-size: 14px; }
+  .msg p { margin: 6px 0; }
+  .msg ul, .msg ol { margin: 6px 0; padding-left: 22px; }
+  .msg code { font-family: var(--mono); font-size: 12.5px; background: rgba(0,0,0,.06); padding: 1px 4px; border-radius: 4px; }
+  .msg pre { background: #1e2430; color: #e6e9ef; padding: 10px; border-radius: 6px; overflow-x: auto; }
+  .msg pre code { background: none; color: inherit; padding: 0; }
+  .cite { display: inline-block; min-width: 18px; padding: 0 4px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 600; text-align: center; cursor: help; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
+  .examples button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--muted); }
+  .examples button:hover { border-color: var(--accent); color: var(--accent); }
+  form { display: flex; gap: 8px; padding: 12px 16px 16px; }
+  #input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: 14px var(--mono); }
+  #input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  form button { padding: 0 18px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  form button:disabled { opacity: .5; cursor: wait; }
+  aside { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .card h2 button { text-transform: none; letter-spacing: 0; font-size: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  dl { margin: 0; display: grid; grid-template-columns: 90px 1fr; gap: 4px 8px; font-size: 13px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; word-break: break-word; }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .call { border-left: 3px solid var(--accent); padding: 4px 8px; margin: 6px 0; font-size: 12.5px; }
+  .call.auto { border-color: var(--ok); }
+  .call.error { border-color: var(--err); }
+  .call summary { cursor: pointer; font-family: var(--mono); }
+  .call pre { white-space: pre-wrap; font-size: 11.5px; background: var(--code); padding: 6px; border-radius: 4px; max-height: 220px; overflow-y: auto; margin: 6px 0 0; }
+  .src { padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+  .src:last-child { border-bottom: none; }
+  .src .score { float: right; color: var(--muted); font-family: var(--mono); }
+  .src.uncited { opacity: .6; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  tr.passed td:first-child { border-left: 3px solid var(--ok); }
+  .empty { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧭 Developer Assistant</h1>
+  <span class="badge" id="repo-name">…</span>
+  <span class="badge branch" id="branch-badge" title="from the project MCP server">⎇ …</span>
+  <span class="badge" id="repo-state">…</span>
+</header>
+<main>
+  <section class="chat">
+    <div id="log"></div>
+    <div class="examples" id="examples"></div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="/help How do I add a new lesson?" value="/help ">
+      <button id="send">Send</button>
+    </form>
+  </section>
+  <aside>
+    <div class="card">
+      <h2>Project <button id="refresh">refresh</button></h2>
+      <dl id="status"><dt>loading</dt><dd>…</dd></dl>
+    </div>
+    <div class="card">
+      <h2>Index <button id="reindex">reindex</button></h2>
+      <dl id="index"><dt>loading</dt><dd>…</dd></dl>
+    </div>
+    <div class="card">
+      <h2>MCP calls (last answer)</h2>
+      <div id="calls" class="empty">Ask something first.</div>
+    </div>
+    <div class="card">
+      <h2>Sources (last answer)</h2>
+      <div id="sources" class="empty">Ask something first.</div>
+    </div>
+    <div class="card">
+      <h2>Retrieval candidates</h2>
+      <div id="candidates" class="empty">Ask something first.</div>
+    </div>
+  </aside>
+</main>
+<script>
+const EXAMPLES = [
+  "/help",
+  "/help How is the repository structured?",
+  "/help How do I add a new lesson?",
+  "/help Which port and service name will lesson 31 get on the VDS?",
+  "/help What changed on this branch compared to master?",
+  "/help Какие уроки используют MCP?",
+  "/help Что лежит в папке docs?",
+];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// A small Markdown renderer: code blocks, headings, lists, bold, inline code,
+// links and [n] citations.
+function inline(text, sources) {
+  let s = esc(text);
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\[(\d+)\]/g, (m, n) => {
+    const src = (sources || []).find((x) => x.n === Number(n));
+    return src ? `<span class="cite" title="${esc(src.source + " › " + src.section)}">${n}</span>` : m;
+  });
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+}
+
+function markdown(md, sources) {
+  const lines = String(md).split("\n");
+  let html = "", list = null, code = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const line of lines) {
+    if (code !== null) {
+      if (line.trim().startsWith("```")) { html += `<pre><code>${esc(code)}</code></pre>`; code = null; }
+      else code += (code ? "\n" : "") + line;
+      continue;
+    }
+    if (line.trim().startsWith("```")) { close(); code = ""; continue; }
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { close(); html += `<h4>${inline(h[2], sources)}</h4>`; continue; }
+    const ul = line.match(/^\s*[-*]\s+(.*)$/);
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ul || ol) {
+      const kind = ul ? "ul" : "ol";
+      if (list !== kind) { close(); html += `<${kind}>`; list = kind; }
+      html += `<li>${inline((ul || ol)[1], sources)}</li>`;
+      continue;
+    }
+    close();
+    if (line.trim()) html += `<p>${inline(line, sources)}</p>`;
+  }
+  if (code !== null) html += `<pre><code>${esc(code)}</code></pre>`;
+  close();
+  return html;
+}
+
+function add(kind, html) {
+  const div = document.createElement("div");
+  div.className = "msg " + kind;
+  div.innerHTML = html;
+  $("log").appendChild(div);
+  $("log").scrollTop = $("log").scrollHeight;
+  return div;
+}
+
+function setBranch(branch, error) {
+  const badge = $("branch-badge");
+  if (branch) {
+    badge.textContent = `⎇ ${branch.detached ? "detached " + branch.head : branch.branch} @ ${branch.head}`;
+    badge.className = "badge branch";
+  } else {
+    badge.textContent = "⎇ unknown";
+    badge.className = "badge err";
+    badge.title = error || "";
+  }
+}
+
+function renderIndex(index) {
+  const origin = index.origin.kind === "checkout"
+    ? `checkout <span class="mono">${esc(index.origin.signature.slice(0, 10))}</span>`
+    : "built-in docs (no checkout)";
+  $("index").innerHTML = `
+    <dt>from</dt><dd>${origin}</dd>
+    <dt>documents</dt><dd>${index.documents}</dd>
+    <dt>chunks</dt><dd>${index.chunks}</dd>
+    <dt>embedder</dt><dd class="mono">${esc(index.embedder)}</dd>
+    <dt>built in</dt><dd>${index.built_ms} ms</dd>
+    ${index.error ? `<dt>error</dt><dd style="color:var(--err)">${esc(index.error)}</dd>` : ""}
+    <dt>files</dt><dd class="mono">${index.sources.map(esc).join("<br>")}</dd>`;
+}
+
+async function loadStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    $("repo-name").textContent = s.repo.name;
+    const state = s.repo.state.state;
+    $("repo-state").textContent = state === "ready" ? "checkout ready" : state === "cloning" ? "cloning…" : "no checkout";
+    $("repo-state").className = "badge " + (state === "ready" ? "ok" : state === "cloning" ? "warn" : "err");
+    setBranch(s.branch, s.branch_error);
+    $("status").innerHTML = `
+      <dt>branch</dt><dd class="mono">${s.branch ? esc(s.branch.branch) : `<span style="color:var(--err)">${esc(s.branch_error)}</span>`}</dd>
+      <dt>HEAD</dt><dd class="mono">${s.branch ? esc(s.branch.head) : "—"}</dd>
+      <dt>upstream</dt><dd class="mono">${s.branch && s.branch.upstream ? esc(s.branch.upstream) : "—"}</dd>
+      <dt>branches</dt><dd class="mono">${s.branch ? s.branch.branches.map(esc).join(", ") : "—"}</dd>
+      <dt>checkout</dt><dd class="mono">${esc(s.repo.dir)}</dd>
+      <dt>MCP</dt><dd class="mono">${esc(s.mcp.url)}<br>${s.mcp.tools ? s.mcp.tools.map(esc).join(", ") : `<span style="color:var(--err)">${esc(s.mcp.error)}</span>`}</dd>
+      <dt>model</dt><dd class="mono">${esc(s.model)}</dd>`;
+    renderIndex(s.index);
+    if (state === "cloning") setTimeout(loadStatus, 3000);
+  } catch (e) {
+    $("status").innerHTML = `<dt>error</dt><dd>${esc(e)}</dd>`;
+  }
+}
+
+function renderDetails(r) {
+  $("calls").className = r.calls.length ? "" : "empty";
+  $("calls").innerHTML = r.calls.length ? r.calls.map((c) => `
+    <details class="call ${c.auto ? "auto" : ""} ${c.is_error ? "error" : ""}">
+      <summary>${c.step}. ${esc(c.tool)}(${esc(JSON.stringify(c.arguments) === "{}" ? "" : JSON.stringify(c.arguments))})
+        ${c.auto ? '<span class="badge ok">auto</span>' : `<span class="badge">round ${c.round}</span>`}
+        ${c.is_error ? '<span class="badge err">error</span>' : ""} <span class="badge">${c.ms} ms</span></summary>
+      <pre>${esc(c.result)}</pre>
+    </details>`).join("") : (r.mcp_error ? esc(r.mcp_error) : "No MCP calls.");
+
+  $("sources").className = r.sources.length ? "" : "empty";
+  $("sources").innerHTML = r.sources.length ? r.sources.map((s) => `
+    <div class="src ${s.cited ? "" : "uncited"}">
+      <span class="cite">${s.n}</span> <span class="score">${s.score.toFixed(2)}${s.cited ? " · cited" : ""}</span>
+      <div class="mono">${esc(s.source)}</div><div>${esc(s.section)}</div>
+    </div>`).join("") : (r.question ? "No fragment passed the threshold." : "The overview uses no documents.");
+
+  $("candidates").className = r.candidates.length ? "" : "empty";
+  $("candidates").innerHTML = r.candidates.length ? `
+    ${r.search_query && r.search_query !== r.question ? `<div class="empty">searched: <span class="mono">${esc(r.search_query)}</span></div>` : ""}
+    <table><tr><td>section</td><td class="num">cos</td><td class="num">score</td></tr>
+    ${r.candidates.slice(0, 10).map((c) => `<tr class="${c.passed ? "passed" : ""}">
+      <td><span class="mono">${esc(c.source)}</span><br>${esc(c.section)}</td>
+      <td class="num">${c.cosine.toFixed(2)}</td><td class="num">${c.score.toFixed(2)}</td></tr>`).join("")}</table>`
+    : "—";
+}
+
+async function send(message) {
+  message = message.trim();
+  if (!message) return;
+  add("user", esc(message));
+  const pending = add("bot", '<span class="empty">thinking… (git_branch → search → model ↔ MCP tools)</span>');
+  $("send").disabled = true;
+  try {
+    const res = await fetch("/api/help", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    const r = await res.json();
+    if (r.branch) setBranch(r.branch);
+    if (r.index) renderIndex(r.index);
+    renderDetails(r);
+    if (r.error && !r.answer) {
+      pending.className = "msg bot error";
+      pending.innerHTML = esc(r.error);
+      return;
+    }
+    const tools = r.calls.filter((c) => !c.auto).map((c) => c.tool);
+    pending.innerHTML = markdown(r.answer, r.sources) + `
+      <div class="meta">
+        ${r.branch ? `<span class="badge branch">⎇ ${esc(r.branch.branch)}</span>` : '<span class="badge err">branch unknown</span>'}
+        ${r.question ? `<span class="badge">${r.sources.length} fragments · ${r.sources.filter((s) => s.cited).length} cited</span>` : ""}
+        ${tools.length ? `<span class="badge">MCP: ${tools.map(esc).join(", ")}</span>` : ""}
+        ${r.llm_rounds ? `<span class="badge">${r.llm_rounds} LLM rounds</span>` : ""}
+        <span class="badge">${(r.ms / 1000).toFixed(1)} s</span>
+      </div>`;
+  } catch (e) {
+    pending.className = "msg bot error";
+    pending.textContent = "Request failed: " + e;
+  } finally {
+    $("send").disabled = false;
+    $("log").scrollTop = $("log").scrollHeight;
+  }
+}
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const message = $("input").value;
+  $("input").value = "/help ";
+  send(message);
+});
+$("refresh").addEventListener("click", loadStatus);
+$("reindex").addEventListener("click", async () => {
+  renderIndex(await (await fetch("/api/reindex", { method: "POST" })).json());
+});
+for (const example of EXAMPLES) {
+  const b = document.createElement("button");
+  b.textContent = example;
+  b.addEventListener("click", () => send(example));
+  $("examples").appendChild(b);
+}
+loadStatus();
+add("bot", markdown("Type **`/help`** to see what I can do, or **`/help <question>`** to ask about the project. Every answer starts with `git_branch` on the `project` MCP server and searches the docs (README, AGENTS.md, DEPLOYMENT.md, `docs/`, lesson READMEs)."));
+</script>
+</body>
+</html>
