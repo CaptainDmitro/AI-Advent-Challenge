@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notely Support Assistant</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #677085; --line: #e2e5ea;
+    --accent: #2f6fde; --accent-soft: #e8f0fd; --ok: #1f8a4c; --ok-soft: #e5f5ec;
+    --err: #c0392b; --err-soft: #fbeaea; --warn: #9a6700; --warn-soft: #fff4d6;
+    --code: #f1f3f6; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .spacer { flex: 1; }
+  header button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: var(--code); color: var(--muted); font-family: var(--mono); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.accent { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  main { display: grid; grid-template-columns: 270px minmax(0, 1fr) 380px; gap: 16px; padding: 16px 20px; height: calc(100vh - 58px); }
+  @media (max-width: 1200px) { main { grid-template-columns: 1fr; height: auto; } }
+  .tickets, aside { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .tickets h2, .card h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .ticket { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+  .ticket:hover { border-color: var(--accent); }
+  .ticket.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .ticket .id { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+  .ticket .subject { font-weight: 600; margin: 2px 0; }
+  .ticket .who { font-size: 12px; color: var(--muted); }
+  .status { font-size: 11px; padding: 0 6px; border-radius: 999px; }
+  .status.open { background: var(--warn-soft); color: var(--warn); }
+  .status.pending { background: var(--accent-soft); color: var(--accent); }
+  .status.resolved, .status.closed { background: var(--ok-soft); color: var(--ok); }
+  .chat { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 520px; }
+  .chat-head { padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .chat-head strong { color: var(--text); }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 92%; padding: 10px 14px; border-radius: 10px; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; white-space: pre-wrap; }
+  .msg.user .on { display: block; font-size: 11px; opacity: .8; font-family: var(--mono); }
+  .msg.bot { align-self: flex-start; background: var(--code); }
+  .msg.bot.error { background: var(--err-soft); color: var(--err); }
+  .msg .meta { margin-top: 8px; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+  .msg h4 { margin: 8px 0 4px; font-size: 14px; }
+  .msg p { margin: 6px 0; }
+  .msg ul, .msg ol { margin: 6px 0; padding-left: 22px; }
+  .msg code { font-family: var(--mono); font-size: 12.5px; background: rgba(0,0,0,.06); padding: 1px 4px; border-radius: 4px; }
+  .msg pre { background: #1e2430; color: #e6e9ef; padding: 10px; border-radius: 6px; overflow-x: auto; }
+  .msg pre code { background: none; color: inherit; padding: 0; }
+  .cite { display: inline-block; min-width: 18px; padding: 0 4px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 600; text-align: center; cursor: help; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
+  .examples button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--muted); }
+  .examples button:hover { border-color: var(--accent); color: var(--accent); }
+  form { display: flex; gap: 8px; padding: 12px 16px 16px; }
+  #input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  #input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  form button { padding: 0 18px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  form button:disabled { opacity: .5; cursor: wait; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  dl { margin: 0; display: grid; grid-template-columns: 96px 1fr; gap: 4px 8px; font-size: 13px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; word-break: break-word; }
+  .flag-bad { color: var(--err); font-weight: 600; }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .event { font-size: 12px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+  .event:last-child { border-bottom: none; }
+  .event .code { font-family: var(--mono); font-weight: 600; color: var(--err); }
+  .event.ok .code { color: var(--ok); }
+  .event .detail { color: var(--muted); }
+  .thread { font-size: 12.5px; margin-top: 8px; }
+  .thread div { padding: 4px 0; }
+  .thread .who { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .thread .note { background: var(--warn-soft); border-radius: 6px; padding: 4px 8px; margin-top: 4px; }
+  .call { border-left: 3px solid var(--accent); padding: 4px 8px; margin: 6px 0; font-size: 12.5px; }
+  .call.auto { border-color: var(--ok); }
+  .call.write { border-color: var(--warn); }
+  .call.error { border-color: var(--err); }
+  .call summary { cursor: pointer; font-family: var(--mono); }
+  .call pre { white-space: pre-wrap; font-size: 11.5px; background: var(--code); padding: 6px; border-radius: 4px; max-height: 220px; overflow-y: auto; margin: 6px 0 0; }
+  .src { padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+  .src:last-child { border-bottom: none; }
+  .src .score { float: right; color: var(--muted); font-family: var(--mono); }
+  .src.uncited { opacity: .6; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  tr.passed td:first-child { border-left: 3px solid var(--ok); }
+  .empty { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛟 Notely Support Assistant</h1>
+  <span class="badge" id="kb-badge">KB …</span>
+  <span class="badge" id="mcp-badge">MCP …</span>
+  <span class="badge" id="model-badge">…</span>
+  <span class="spacer"></span>
+  <button id="reset" title="Put data/crm.json back">reset CRM</button>
+</header>
+<main>
+  <section class="tickets">
+    <h2>Tickets <span class="badge">via MCP list_tickets</span></h2>
+    <div class="ticket" data-id="" id="no-ticket">
+      <div class="subject">No ticket</div>
+      <div class="who">general questions about Notely</div>
+    </div>
+    <div id="ticket-list" class="empty">loading…</div>
+  </section>
+  <section class="chat">
+    <div class="chat-head" id="chat-head">No ticket selected: the assistant answers from the knowledge base only.</div>
+    <div id="log"></div>
+    <div class="examples" id="examples"></div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Почему не работает авторизация?">
+      <button id="send">Send</button>
+    </form>
+  </section>
+  <aside>
+    <div class="card">
+      <h2>Customer &amp; ticket <span class="badge">get_ticket + get_user</span></h2>
+      <div id="context" class="empty">Select a ticket on the left.</div>
+    </div>
+    <div class="card">
+      <h2>MCP calls (last answer)</h2>
+      <div id="calls" class="empty">Ask something first.</div>
+    </div>
+    <div class="card">
+      <h2>Sources (last answer)</h2>
+      <div id="sources" class="empty">Ask something first.</div>
+    </div>
+    <div class="card">
+      <h2>Retrieval candidates</h2>
+      <div id="candidates" class="empty">Ask something first.</div>
+    </div>
+  </aside>
+</main>
+<script>
+const EXAMPLES = [
+  "Почему не работает авторизация?",
+  "Что мне сделать, чтобы снова войти?",
+  "Запиши диагноз в тикет и переведи его в pending",
+  "Сколько устройств синхронизируется на бесплатном плане?",
+  "How do I export all my notes?",
+];
+const WRITE_TOOLS = ["add_ticket_note", "set_ticket_status"];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let selected = "";
+let tickets = [];
+
+// A small Markdown renderer: code blocks, headings, lists, bold, inline code,
+// links and [n] citations.
+function inline(text, sources) {
+  let s = esc(text);
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\[(\d+)\]/g, (m, n) => {
+    const src = (sources || []).find((x) => x.n === Number(n));
+    return src ? `<span class="cite" title="${esc(src.source + " › " + src.section)}">${n}</span>` : m;
+  });
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+}
+
+function markdown(md, sources) {
+  const lines = String(md).split("\n");
+  let html = "", list = null, code = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const line of lines) {
+    if (code !== null) {
+      if (line.trim().startsWith("```")) { html += `<pre><code>${esc(code)}</code></pre>`; code = null; }
+      else code += (code ? "\n" : "") + line;
+      continue;
+    }
+    if (line.trim().startsWith("```")) { close(); code = ""; continue; }
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { close(); html += `<h4>${inline(h[2], sources)}</h4>`; continue; }
+    const ul = line.match(/^\s*[-*]\s+(.*)$/);
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ul || ol) {
+      const kind = ul ? "ul" : "ol";
+      if (list !== kind) { close(); html += `<${kind}>`; list = kind; }
+      html += `<li>${inline((ul || ol)[1], sources)}</li>`;
+      continue;
+    }
+    close();
+    if (line.trim()) html += `<p>${inline(line, sources)}</p>`;
+  }
+  if (code !== null) html += `<pre><code>${esc(code)}</code></pre>`;
+  close();
+  return html;
+}
+
+function add(kind, html) {
+  const div = document.createElement("div");
+  div.className = "msg " + kind;
+  div.innerHTML = html;
+  $("log").appendChild(div);
+  $("log").scrollTop = $("log").scrollHeight;
+  return div;
+}
+
+// ---- Tickets ----
+
+function renderTickets() {
+  $("no-ticket").classList.toggle("selected", selected === "");
+  $("ticket-list").className = tickets.length ? "" : "empty";
+  $("ticket-list").innerHTML = tickets.length ? tickets.map((t) => `
+    <div class="ticket ${t.id === selected ? "selected" : ""}" data-id="${esc(t.id)}">
+      <div class="id"><span>${esc(t.id)} · ${esc(t.priority)}</span><span class="status ${esc(t.status)}">${esc(t.status)}</span></div>
+      <div class="subject">${esc(t.subject)}</div>
+      <div class="who">${esc(t.customer || t.user_id)} · ${esc(t.plan || "")}</div>
+    </div>`).join("") : "No tickets.";
+  for (const el of document.querySelectorAll("#ticket-list .ticket")) {
+    el.addEventListener("click", () => select(el.dataset.id));
+  }
+}
+
+async function loadTickets() {
+  try {
+    const r = await (await fetch("/api/tickets")).json();
+    tickets = r.tickets || [];
+    if (r.error) { $("ticket-list").className = "empty"; $("ticket-list").textContent = r.error; return; }
+    renderTickets();
+  } catch (e) {
+    $("ticket-list").textContent = "Failed: " + e;
+  }
+}
+
+function chatHead() {
+  const t = tickets.find((x) => x.id === selected);
+  $("chat-head").innerHTML = t
+    ? `Working on <strong>${esc(t.id)}</strong> «${esc(t.subject)}» from <strong>${esc(t.customer)}</strong> &lt;${esc(t.email)}&gt;. Every answer starts with <span class="mono">get_ticket</span> + <span class="mono">get_user</span> over MCP.`
+    : "No ticket selected: the assistant answers from the knowledge base only.";
+}
+
+async function select(id) {
+  selected = id || "";
+  renderTickets();
+  chatHead();
+  if (!selected) { $("context").className = "empty"; $("context").textContent = "No ticket selected."; return; }
+  $("context").className = "empty";
+  $("context").textContent = "loading…";
+  try {
+    const r = await (await fetch("/api/context?ticket_id=" + encodeURIComponent(selected))).json();
+    renderContext(r.ticket, r.user, r.error);
+  } catch (e) {
+    $("context").textContent = "Failed: " + e;
+  }
+}
+
+// ---- The customer card ----
+
+function securityRows(s) {
+  const bad = (text) => `<span class="flag-bad">${esc(text)}</span>`;
+  const verified = s.email_verified ? "yes" : bad("NO" + (s.verification_email_sent_at ? ` (sent ${s.verification_email_sent_at})` : ""));
+  const twofa = s.two_factor ? `on (${esc(s.two_factor)})` : "off";
+  const sso = s.sso ? (s.sso.enforced ? bad(`${s.sso.provider}, enforced since ${s.sso.enforced_since || "?"}`) : esc(`${s.sso.provider}, not enforced`)) : "none";
+  const locked = s.locked ? bad(s.locked_until ? `YES, until ${s.locked_until}` : "YES, until password reset") : "no";
+  return `
+    <dt>email</dt><dd>${verified}</dd>
+    <dt>2FA</dt><dd>${twofa}</dd>
+    <dt>SSO</dt><dd>${sso}</dd>
+    <dt>failed in a row</dt><dd>${s.failed_logins ? bad(String(s.failed_logins)) : "0"}</dd>
+    <dt>locked</dt><dd>${locked}</dd>`;
+}
+
+function renderContext(t, u, error) {
+  if (!t) { $("context").className = "empty"; $("context").textContent = error || "No ticket."; return; }
+  $("context").className = "";
+  const events = (u && u.login_events) || [];
+  $("context").innerHTML = `
+    <dl>
+      <dt>ticket</dt><dd><span class="mono">${esc(t.id)}</span> <span class="status ${esc(t.status)}">${esc(t.status)}</span> ${esc(t.priority)} · ${esc(t.channel)}</dd>
+      <dt>subject</dt><dd>${esc(t.subject)}</dd>
+      ${u ? `
+      <dt>customer</dt><dd>${esc(u.name)} <span class="mono">${esc(u.id)}</span><br><span class="mono">${esc(u.email)}</span></dd>
+      <dt>plan</dt><dd>${esc(u.plan)} · ${esc(u.status)} · ${u.devices} devices${u.company ? " · " + esc(u.company) : ""}</dd>
+      ${securityRows(u.security)}` : ""}
+    </dl>
+    ${events.length ? `<div style="margin-top:8px"><div class="empty">last sign-in attempts (newest first)</div>${events.map((e) => `
+      <div class="event ${e.result === "ok" ? "ok" : ""}">
+        <span class="mono">${esc(e.at.replace("T", " ").replace("Z", ""))}</span> ${esc(e.method)} · ${esc(e.client)}
+        <span class="code">${esc(e.code || e.result)}</span>
+        ${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ""}
+      </div>`).join("")}</div>` : ""}
+    <div class="thread">
+      ${t.messages.map((m) => `<div><div class="who">${esc(m.from)} · ${esc(m.at)}</div>${esc(m.text)}</div>`).join("")}
+      ${t.notes.map((n) => `<div class="note"><div class="who">note · ${esc(n.author)} · ${esc(n.at)}</div>${esc(n.text)}</div>`).join("")}
+    </div>`;
+}
+
+// ---- The last answer ----
+
+function renderDetails(r) {
+  $("calls").className = r.calls.length ? "" : "empty";
+  $("calls").innerHTML = r.calls.length ? r.calls.map((c) => {
+    const write = WRITE_TOOLS.includes(c.tool);
+    return `
+    <details class="call ${c.auto ? "auto" : ""} ${write ? "write" : ""} ${c.is_error ? "error" : ""}">
+      <summary>${c.step}. ${esc(c.tool)}(${esc(JSON.stringify(c.arguments) === "{}" ? "" : JSON.stringify(c.arguments))})
+        ${c.auto ? '<span class="badge ok">auto</span>' : `<span class="badge">round ${c.round}</span>`}
+        ${write ? '<span class="badge warn">write</span>' : ""}
+        ${c.is_error ? '<span class="badge err">error</span>' : ""} <span class="badge">${c.ms} ms</span></summary>
+      <pre>${esc(c.result)}</pre>
+    </details>`;
+  }).join("") : (r.mcp_error ? esc(r.mcp_error) : "No MCP calls (no ticket selected).");
+
+  $("sources").className = r.sources.length ? "" : "empty";
+  $("sources").innerHTML = r.sources.length ? r.sources.map((s) => `
+    <div class="src ${s.cited ? "" : "uncited"}">
+      <span class="cite">${s.n}</span> <span class="score">${s.score.toFixed(2)}${s.cited ? " · cited" : ""}</span>
+      <div class="mono">${esc(s.source)}</div><div>${esc(s.section)}</div>
+    </div>`).join("") : "No fragment passed the threshold.";
+
+  $("candidates").className = r.candidates.length ? "" : "empty";
+  $("candidates").innerHTML = r.candidates.length ? `
+    ${r.search_query ? `<div class="empty">searched: <span class="mono">${esc(r.search_query)}</span></div>` : ""}
+    ${r.context_hints.length ? `<div class="empty">from the ticket: ${r.context_hints.map((h) => `<span class="badge">${esc(h)}</span>`).join(" ")}</div>` : ""}
+    <table><tr><td>section</td><td class="num">cos</td><td class="num">score</td></tr>
+    ${r.candidates.slice(0, 10).map((c) => `<tr class="${c.passed ? "passed" : ""}">
+      <td><span class="mono">${esc(c.source)}</span><br>${esc(c.section)}</td>
+      <td class="num">${c.cosine.toFixed(2)}</td><td class="num">${c.score.toFixed(2)}</td></tr>`).join("")}</table>`
+    : "—";
+}
+
+async function send(message) {
+  message = message.trim();
+  if (!message) return;
+  const ticket = selected;
+  add("user", `<span class="on">${ticket ? esc(ticket) : "no ticket"}</span>${esc(message)}`);
+  const pending = add("bot", `<span class="empty">thinking… (${ticket ? "get_ticket → get_user → " : ""}search → model ↔ MCP tools)</span>`);
+  $("send").disabled = true;
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, ticket_id: ticket || null }),
+    });
+    const r = await res.json();
+    renderDetails(r);
+    if (r.ticket && ticket === selected) renderContext(r.ticket, r.user);
+    if (r.changed) { await loadTickets(); if (ticket === selected) await select(ticket); }
+    if (r.error && !r.answer) {
+      pending.className = "msg bot error";
+      pending.innerHTML = esc(r.error);
+      return;
+    }
+    const tools = r.calls.filter((c) => !c.auto).map((c) => c.tool);
+    pending.innerHTML = markdown(r.answer, r.sources) + `
+      <div class="meta">
+        ${r.ticket ? `<span class="badge accent">${esc(r.ticket.id)}</span>` : '<span class="badge">no ticket</span>'}
+        <span class="badge">${r.sources.length} fragments · ${r.sources.filter((s) => s.cited).length} cited</span>
+        ${tools.length ? `<span class="badge">MCP: ${tools.map(esc).join(", ")}</span>` : ""}
+        ${r.changed ? '<span class="badge warn">CRM updated</span>' : ""}
+        <span class="badge">${r.llm_rounds} LLM rounds</span>
+        <span class="badge">${(r.ms / 1000).toFixed(1)} s</span>
+      </div>`;
+  } catch (e) {
+    pending.className = "msg bot error";
+    pending.textContent = "Request failed: " + e;
+  } finally {
+    $("send").disabled = false;
+    $("log").scrollTop = $("log").scrollHeight;
+  }
+}
+
+async function loadStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    $("kb-badge").textContent = `KB ${s.kb.documents} docs · ${s.kb.chunks} chunks`;
+    $("mcp-badge").textContent = s.mcp.tools ? `MCP /mcp/crm · ${s.mcp.tools.length} tools` : "MCP unreachable";
+    $("mcp-badge").className = "badge " + (s.mcp.tools ? "ok" : "err");
+    $("mcp-badge").title = s.mcp.tools ? s.mcp.tools.join(", ") : (s.mcp.error || "");
+    $("model-badge").textContent = s.model;
+  } catch (e) {
+    $("mcp-badge").textContent = "status failed";
+  }
+}
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const message = $("input").value;
+  $("input").value = "";
+  send(message);
+});
+$("no-ticket").addEventListener("click", () => select(""));
+$("reset").addEventListener("click", async () => {
+  const r = await (await fetch("/api/reset", { method: "POST" })).json();
+  if (!r.ok) alert(r.error);
+  await loadTickets();
+  await select(selected);
+});
+for (const example of EXAMPLES) {
+  const b = document.createElement("button");
+  b.textContent = example;
+  b.addEventListener("click", () => send(example));
+  $("examples").appendChild(b);
+}
+loadStatus();
+loadTickets();
+add("bot", markdown("Pick a ticket on the left and ask, for example, **«Почему не работает авторизация?»**. I read the ticket and the customer's account from the `crm` MCP server, search Notely's FAQ and help center, and answer with `[n]` citations. I can also add a note to the ticket or change its status when asked."));
+</script>
+</body>
+</html>
