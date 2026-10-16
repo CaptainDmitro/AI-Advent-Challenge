@@ -1,0 +1,3 @@
+# The live CRM file `cargo run` creates from data/crm.json.
+/crm.json
+/crm.json.tmp
