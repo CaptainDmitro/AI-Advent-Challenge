@@ -106,6 +106,33 @@ This means old lessons stay frozen at whatever they last deployed as —
 pushing an update to lesson 6 today won't touch lessons 3 or 5's running
 instances. To push a change to an older lesson, use the manual override.
 
+## AI review of pull requests (`ai-review.yml`)
+
+A second workflow, separate from the deploy pipeline above:
+
+```
+pull_request opened / synchronize / reopened / ready_for_review
+        |
+        v
+  review  -----> checkout base -> reviewer/   (the reviewer comes from the base branch)
+                 checkout head -> pr/         (fetch-depth 0)
+                 cargo build --release in reviewer/32. AI Code Review
+                 ai-code-review review --repo-dir pr --pr N --post
+                        -> one PR comment, edited in place on every push
+```
+
+- **Permissions**: `contents: read`, `pull-requests: write`, with the job's
+  own `GITHUB_TOKEN`. No new secrets: it reuses `OPENAI_API_KEY`,
+  `OPENAI_BASE_URL` and `OPENAI_MODEL` from the table above.
+- **Skipped** for PRs from forks (they get no secrets) and for drafts.
+  `concurrency` cancels a running review when a newer push arrives.
+- **Advisory**: findings never fail the job. It fails only when the review
+  can't run (LLM error, missing key), and then it posts a comment saying why.
+- **The reviewer is built from the base branch**, so a PR that changes or
+  breaks lesson 32 is still reviewed by the version on `master`.
+- Like every workflow here, the file is changed by hand in GitHub's web
+  editor; its full text is in `32. AI Code Review/README.md`.
+
 ## Debugging a failed deploy
 
 - `GET`/`POST` to `http://<VDS_HOST>:<port>/` timing out or returning an
