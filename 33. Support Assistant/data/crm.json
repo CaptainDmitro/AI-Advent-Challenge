@@ -1,0 +1,263 @@
+{
+  "users": [
+    {
+      "id": "U-101",
+      "name": "Anna Petrova",
+      "email": "anna.petrova@acme.io",
+      "plan": "pro",
+      "company": "Acme",
+      "status": "active",
+      "created_at": "2024-03-12T10:04:00Z",
+      "devices": 3,
+      "security": {
+        "email_verified": true,
+        "two_factor": null,
+        "sso": null,
+        "failed_logins": 10,
+        "locked": true,
+        "locked_until": null,
+        "lock_reason": "10 failed sign-in attempts within 24 hours: locked until the password is reset"
+      },
+      "login_events": [
+        { "at": "2026-10-15T18:02:11Z", "method": "password", "client": "web", "result": "ok" },
+        { "at": "2026-10-16T08:51:40Z", "method": "password", "client": "ios", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T08:52:05Z", "method": "password", "client": "ios", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T08:52:31Z", "method": "password", "client": "ios", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T08:53:02Z", "method": "password", "client": "ios", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T08:53:40Z", "method": "password", "client": "ios", "result": "failed", "code": "WRONG_PASSWORD", "detail": "5 failed attempts in a row: locked for 30 minutes" },
+        { "at": "2026-10-16T09:31:12Z", "method": "password", "client": "web", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T09:31:49Z", "method": "password", "client": "web", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T09:32:20Z", "method": "password", "client": "web", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T09:33:01Z", "method": "password", "client": "web", "result": "failed", "code": "WRONG_PASSWORD" },
+        { "at": "2026-10-16T09:33:37Z", "method": "password", "client": "web", "result": "failed", "code": "WRONG_PASSWORD", "detail": "10 failed attempts within 24 hours: locked until the password is reset" },
+        { "at": "2026-10-16T10:02:15Z", "method": "password", "client": "web", "result": "failed", "code": "ACCOUNT_LOCKED" },
+        { "at": "2026-10-16T10:05:48Z", "method": "password", "client": "desktop", "result": "failed", "code": "ACCOUNT_LOCKED" }
+      ]
+    },
+    {
+      "id": "U-102",
+      "name": "Boris Ivanov",
+      "email": "boris.ivanov@gmail.com",
+      "plan": "free",
+      "company": null,
+      "status": "active",
+      "created_at": "2026-10-15T20:11:00Z",
+      "devices": 0,
+      "security": {
+        "email_verified": false,
+        "verification_email_sent_at": "2026-10-15T20:11:02Z",
+        "two_factor": null,
+        "sso": null,
+        "failed_logins": 0,
+        "locked": false,
+        "locked_until": null
+      },
+      "login_events": [
+        { "at": "2026-10-16T07:40:21Z", "method": "password", "client": "android", "result": "failed", "code": "EMAIL_NOT_VERIFIED" },
+        { "at": "2026-10-16T07:41:03Z", "method": "password", "client": "android", "result": "failed", "code": "EMAIL_NOT_VERIFIED" },
+        { "at": "2026-10-16T09:12:44Z", "method": "password", "client": "web", "result": "failed", "code": "EMAIL_NOT_VERIFIED", "detail": "confirmation link sent 2026-10-15T20:11:02Z, never opened" }
+      ]
+    },
+    {
+      "id": "U-103",
+      "name": "Chen Wei",
+      "email": "chen.wei@bigcorp.com",
+      "plan": "team",
+      "company": "BigCorp",
+      "status": "active",
+      "created_at": "2025-06-02T08:30:00Z",
+      "devices": 2,
+      "security": {
+        "email_verified": true,
+        "two_factor": null,
+        "sso": { "provider": "Okta", "domain": "bigcorp.com", "enforced": true, "enforced_since": "2026-10-15T06:00:00Z" },
+        "failed_logins": 0,
+        "locked": false,
+        "locked_until": null
+      },
+      "login_events": [
+        { "at": "2026-10-14T17:45:09Z", "method": "password", "client": "desktop", "result": "ok" },
+        { "at": "2026-10-16T08:05:33Z", "method": "password", "client": "desktop", "result": "failed", "code": "SSO_REQUIRED", "detail": "password sign-in is off for bigcorp.com since 2026-10-15T06:00:00Z" },
+        { "at": "2026-10-16T08:07:12Z", "method": "password", "client": "web", "result": "failed", "code": "SSO_REQUIRED" },
+        { "at": "2026-10-16T08:09:40Z", "method": "password_reset", "client": "web", "result": "failed", "code": "SSO_REQUIRED", "detail": "reset email not sent: the domain requires SSO" }
+      ]
+    },
+    {
+      "id": "U-104",
+      "name": "Elena Smirnova",
+      "email": "elena@smirnova.studio",
+      "plan": "pro",
+      "company": "Smirnova Studio",
+      "status": "active",
+      "created_at": "2023-11-20T12:00:00Z",
+      "devices": 3,
+      "security": {
+        "email_verified": true,
+        "two_factor": "totp",
+        "sso": null,
+        "failed_logins": 3,
+        "locked": false,
+        "locked_until": null
+      },
+      "login_events": [
+        { "at": "2026-10-10T09:14:27Z", "method": "password+totp", "client": "web", "result": "ok" },
+        { "at": "2026-10-16T11:20:05Z", "method": "password+totp", "client": "web", "result": "failed", "code": "INVALID_2FA_CODE", "detail": "password correct; the code matches a time step 4 minutes earlier: the authenticator's clock is behind (clock skew)" },
+        { "at": "2026-10-16T11:21:10Z", "method": "password+totp", "client": "web", "result": "failed", "code": "INVALID_2FA_CODE", "detail": "password correct; clock skew about -4 min" },
+        { "at": "2026-10-16T11:22:47Z", "method": "password+totp", "client": "web", "result": "failed", "code": "INVALID_2FA_CODE", "detail": "password correct; clock skew about -4 min" }
+      ]
+    },
+    {
+      "id": "U-105",
+      "name": "Ivan Kuznetsov",
+      "email": "ivan.kuznetsov@mail.ru",
+      "plan": "free",
+      "company": null,
+      "status": "active",
+      "created_at": "2025-01-08T19:22:00Z",
+      "devices": 3,
+      "security": {
+        "email_verified": true,
+        "two_factor": null,
+        "sso": null,
+        "failed_logins": 0,
+        "locked": false,
+        "locked_until": null
+      },
+      "login_events": [
+        { "at": "2026-10-15T21:40:00Z", "method": "password", "client": "android", "result": "ok", "detail": "third device: sync off, SYNC_DEVICE_LIMIT" }
+      ]
+    },
+    {
+      "id": "U-106",
+      "name": "Olga Morozova",
+      "email": "olga.morozova@bigcorp.com",
+      "plan": "team",
+      "company": "BigCorp",
+      "status": "active",
+      "created_at": "2025-05-30T09:00:00Z",
+      "devices": 2,
+      "security": {
+        "email_verified": true,
+        "two_factor": null,
+        "sso": { "provider": "Okta", "domain": "bigcorp.com", "enforced": true, "enforced_since": "2026-10-15T06:00:00Z" },
+        "failed_logins": 0,
+        "locked": false,
+        "locked_until": null
+      },
+      "login_events": [
+        { "at": "2026-10-16T07:58:02Z", "method": "sso", "client": "web", "result": "ok" }
+      ]
+    }
+  ],
+  "tickets": [
+    {
+      "id": "T-1001",
+      "user_id": "U-101",
+      "subject": "Не могу войти в аккаунт",
+      "status": "open",
+      "priority": "high",
+      "channel": "email",
+      "created_at": "2026-10-16T10:07:30Z",
+      "updated_at": "2026-10-16T10:07:30Z",
+      "tags": ["sign-in"],
+      "messages": [
+        { "at": "2026-10-16T10:07:30Z", "from": "customer", "text": "Здравствуйте! С утра не могу войти в Notely ни с телефона, ни с компьютера. Пароль вроде правильный. Что происходит?" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "T-1002",
+      "user_id": "U-102",
+      "subject": "Зарегистрировался, но не пускает",
+      "status": "open",
+      "priority": "normal",
+      "channel": "chat",
+      "created_at": "2026-10-16T09:15:00Z",
+      "updated_at": "2026-10-16T09:15:00Z",
+      "tags": ["sign-in", "new-user"],
+      "messages": [
+        { "at": "2026-10-16T09:15:00Z", "from": "customer", "text": "Вчера создал аккаунт, сегодня пытаюсь войти и не получается. Пароль точно тот." }
+      ],
+      "notes": []
+    },
+    {
+      "id": "T-1003",
+      "user_id": "U-103",
+      "subject": "Пароль перестал подходить",
+      "status": "open",
+      "priority": "high",
+      "channel": "email",
+      "created_at": "2026-10-16T08:15:21Z",
+      "updated_at": "2026-10-16T08:15:21Z",
+      "tags": ["sign-in"],
+      "messages": [
+        { "at": "2026-10-16T08:15:21Z", "from": "customer", "text": "Ещё позавчера входил по email и паролю, а сегодня пишет ошибку. Попробовал сбросить пароль, но письмо так и не пришло." }
+      ],
+      "notes": []
+    },
+    {
+      "id": "T-1004",
+      "user_id": "U-104",
+      "subject": "Не получается войти",
+      "status": "open",
+      "priority": "normal",
+      "channel": "chat",
+      "created_at": "2026-10-16T11:25:00Z",
+      "updated_at": "2026-10-16T11:25:00Z",
+      "tags": ["sign-in"],
+      "messages": [
+        { "at": "2026-10-16T11:25:00Z", "from": "customer", "text": "Ввожу пароль, потом шестизначный код из приложения на телефоне, а Notely пишет, что код неверный. Пробовала три раза, коды каждый раз новые." }
+      ],
+      "notes": []
+    },
+    {
+      "id": "T-1005",
+      "user_id": "U-105",
+      "subject": "Заметки не синхронизируются на новом телефоне",
+      "status": "open",
+      "priority": "normal",
+      "channel": "email",
+      "created_at": "2026-10-16T06:30:00Z",
+      "updated_at": "2026-10-16T06:30:00Z",
+      "tags": ["sync"],
+      "messages": [
+        { "at": "2026-10-16T06:30:00Z", "from": "customer", "text": "Поставил Notely на новый телефон. Старые заметки видно, но то, что пишу на телефоне, не появляется на ноутбуке." }
+      ],
+      "notes": []
+    },
+    {
+      "id": "T-0998",
+      "user_id": "U-101",
+      "subject": "Счёт за сентябрь без реквизитов компании",
+      "status": "resolved",
+      "priority": "low",
+      "channel": "email",
+      "created_at": "2026-10-02T12:10:00Z",
+      "updated_at": "2026-10-03T08:45:00Z",
+      "tags": ["billing"],
+      "messages": [
+        { "at": "2026-10-02T12:10:00Z", "from": "customer", "text": "В счёте за сентябрь нет названия компании и ИНН. Можно исправить?" },
+        { "at": "2026-10-03T08:45:00Z", "from": "agent", "text": "Выставленный счёт изменить нельзя, но если указать реквизиты в Settings → Billing, они будут во всех следующих счетах." }
+      ],
+      "notes": [
+        { "at": "2026-10-03T08:44:00Z", "author": "agent:maria", "text": "Объяснила, что счета не меняются после выставления. Клиентка добавила реквизиты." }
+      ]
+    },
+    {
+      "id": "T-0991",
+      "user_id": "U-106",
+      "subject": "Как выгрузить все заметки команды?",
+      "status": "closed",
+      "priority": "low",
+      "channel": "chat",
+      "created_at": "2026-09-24T15:00:00Z",
+      "updated_at": "2026-09-25T10:20:00Z",
+      "tags": ["export"],
+      "messages": [
+        { "at": "2026-09-24T15:00:00Z", "from": "customer", "text": "Нужно выгрузить все заметки нашего пространства для аудита." },
+        { "at": "2026-09-25T10:20:00Z", "from": "agent", "text": "Админ может выгрузить всё пространство в Admin console → Export." }
+      ],
+      "notes": []
+    }
+  ]
+}
