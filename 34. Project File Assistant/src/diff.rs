@@ -11,7 +11,8 @@ use crate::workspace::Snapshot;
 #[derive(Serialize, Clone, Debug)]
 pub struct FileDiff {
     pub path: String,
-    /// `added`, `modified` or `deleted`.
+    /// `added`, `modified`, `deleted` or `unchanged` (same content written
+    /// again; never in `tree_diff`).
     pub status: &'static str,
     /// Lines added and removed.
     pub added: usize,
@@ -22,12 +23,13 @@ pub struct FileDiff {
 
 /// One file's diff; `None` is a file that doesn't exist on that side.
 pub fn file_diff(path: &str, old: Option<&str>, new: Option<&str>) -> FileDiff {
+    let (a, b) = (old.unwrap_or(""), new.unwrap_or(""));
     let status = match (old, new) {
         (None, Some(_)) => "added",
         (Some(_), None) => "deleted",
+        _ if a == b => "unchanged",
         _ => "modified",
     };
-    let (a, b) = (old.unwrap_or(""), new.unwrap_or(""));
     let diff = TextDiff::from_lines(a, b);
     let (mut added, mut removed) = (0, 0);
     for change in diff.iter_all_changes() {
@@ -37,11 +39,14 @@ pub fn file_diff(path: &str, old: Option<&str>, new: Option<&str>) -> FileDiff {
             ChangeTag::Equal => {}
         }
     }
-    let text = if a == b {
+    let old_name = old.map_or("/dev/null".to_string(), |_| format!("a/{path}"));
+    let new_name = new.map_or("/dev/null".to_string(), |_| format!("b/{path}"));
+    let text = if status == "unchanged" {
         String::new()
+    } else if a == b {
+        // An empty file created or deleted: no lines, but still a change.
+        format!("--- {old_name}\n+++ {new_name}\n")
     } else {
-        let old_name = old.map_or("/dev/null".to_string(), |_| format!("a/{path}"));
-        let new_name = new.map_or("/dev/null".to_string(), |_| format!("b/{path}"));
         diff.unified_diff()
             .context_radius(3)
             .header(&old_name, &new_name)
@@ -112,7 +117,11 @@ mod tests {
         let d = file_diff("CHANGELOG.md", None, Some("# Changelog\n"));
         assert_eq!((d.status, d.added, d.removed), ("added", 1, 0));
         assert!(d.diff.starts_with("--- /dev/null\n+++ b/CHANGELOG.md\n"), "{}", d.diff);
-        assert!(file_diff("x.md", Some("same\n"), Some("same\n")).diff.is_empty());
+        let same = file_diff("x.md", Some("same\n"), Some("same\n"));
+        assert_eq!((same.status, same.diff.as_str()), ("unchanged", ""));
+        let empty = file_diff("tests/__init__.py", None, Some(""));
+        assert_eq!(empty.status, "added");
+        assert_eq!(empty.diff, "--- /dev/null\n+++ b/tests/__init__.py\n");
 
         let before: Snapshot = [("a.md", "1\n"), ("b.md", "2\n"), ("c.md", "3\n")]
             .into_iter()
