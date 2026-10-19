@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploy Doctor</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #677085; --line: #e2e5ea;
+    --accent: #2f6fde; --accent-soft: #e8f0fd; --ok: #1f8a4c; --ok-soft: #e5f5ec;
+    --err: #c0392b; --err-soft: #fbeaea; --warn: #9a6700; --warn-soft: #fff4d6;
+    --code: #f1f3f6; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: var(--code); color: var(--muted); font-family: var(--mono); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+  aside { display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .card h2 button { text-transform: none; letter-spacing: 0; font-size: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .run { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font: inherit; }
+  .run:hover { border-color: var(--accent); }
+  .run .meta, .issue .meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .dot.success { background: var(--ok); } .dot.failure { background: var(--err); } .dot.cancelled { background: var(--warn); }
+  form { display: flex; gap: 6px; }
+  input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: 13px var(--mono); }
+  .primary { padding: 7px 12px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .issue { display: block; padding: 6px 0; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+  .issue:last-child { border-bottom: none; }
+  .issue.closed .title { color: var(--muted); text-decoration: line-through; }
+  .empty { color: var(--muted); font-size: 13px; }
+  #result { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .verdict { border-left: 5px solid var(--muted); }
+  .verdict.healthy { border-left-color: var(--ok); } .verdict.broken { border-left-color: var(--err); } .verdict.known_issue { border-left-color: #d4ac0d; }
+  .verdict h3 { margin: 0 0 6px; font-size: 16px; }
+  .verdict p { margin: 6px 0; }
+  .verdict ul { margin: 4px 0 8px; padding-left: 20px; }
+  .fix { background: var(--ok-soft); border-radius: 6px; padding: 6px 8px; }
+  .note { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 6px 8px; }
+  .errbox { background: var(--err-soft); color: var(--err); border-radius: 6px; padding: 8px 10px; }
+  code, pre { font-family: var(--mono); font-size: 12.5px; }
+  code { background: rgba(0,0,0,.06); padding: 1px 4px; border-radius: 4px; }
+  pre { background: var(--code); padding: 8px 10px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td, th { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  tr.error td:first-child { border-left: 3px solid var(--err); }
+  details { margin: 4px 0; }
+  summary { cursor: pointer; color: var(--accent); }
+  .spinner { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🩺 Deploy Doctor</h1>
+  <span class="badge" id="repo">…</span>
+  <span class="badge" id="model">…</span>
+  <span class="badge" id="vds">…</span>
+  <span class="badge" id="token">…</span>
+</header>
+<main>
+  <aside>
+    <div class="card">
+      <h2>Diagnose a run</h2>
+      <form id="form">
+        <input id="runId" placeholder="CI/CD run id" inputmode="numeric">
+        <button class="primary" id="go">Diagnose</button>
+      </form>
+      <p class="empty">The page never posts: issues are opened by the GitHub Action.</p>
+    </div>
+    <div class="card">
+      <h2>Recent CI/CD runs <button id="reloadRuns">↻</button></h2>
+      <div id="runs" class="empty">Loading…</div>
+    </div>
+    <div class="card">
+      <h2>Doctor's issues <button id="reloadIssues">↻</button></h2>
+      <div id="issues" class="empty">Loading…</div>
+    </div>
+  </aside>
+  <section id="result">
+    <div class="card empty">Pick a run. The doctor groups its jobs into subjects (a failed or deployed lesson,
+      or the pipeline), and for each one the model reads job logs and checks the service on the VDS with
+      read-only tools until it can give a verdict.</div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const STATUS = { healthy: '🟢 Healthy', broken: '🔴 Broken', known_issue: '🟡 Known issue', unknown: '⚪ Not diagnosed' };
+
+async function getJson(url, options) {
+  const r = await fetch(url, options);
+  return r.json();
+}
+
+async function loadStatus() {
+  try {
+    const s = await getJson('/api/status');
+    $('repo').textContent = s.repo;
+    $('model').textContent = s.llm_key ? s.model : 'no OPENAI_API_KEY';
+    $('model').className = 'badge ' + (s.llm_key ? 'ok' : 'err');
+    $('vds').textContent = 'VDS: ' + s.vds;
+    $('vds').className = 'badge ' + (s.vds.startsWith('off') ? 'warn' : 'ok');
+    $('token').textContent = s.github_token ? 'GitHub token' : 'no GitHub token: no job logs';
+    $('token').className = 'badge ' + (s.github_token ? 'ok' : 'warn');
+  } catch (e) { $('repo').textContent = 'status unavailable'; }
+}
+
+async function loadRuns() {
+  $('runs').textContent = 'Loading…';
+  const r = await getJson('/api/runs').catch((e) => ({ runs: [], error: String(e) }));
+  if (r.error) { $('runs').innerHTML = `<div class="errbox">${esc(r.error)}</div>`; return; }
+  if (!r.runs.length) { $('runs').textContent = 'No runs.'; return; }
+  $('runs').innerHTML = r.runs.map((run) => `
+    <button class="run" data-id="${run.id}">
+      <span class="dot ${esc(run.conclusion || '')}"></span>${esc(run.display_title)}
+      <div class="meta">#${run.id} · ${esc(run.event)} · ${esc(run.head_sha.slice(0, 7))} · ${esc(run.conclusion || run.status)}</div>
+    </button>`).join('');
+  document.querySelectorAll('.run').forEach((b) => b.onclick = () => { $('runId').value = b.dataset.id; diagnose(); });
+}
+
+async function loadIssues() {
+  $('issues').textContent = 'Loading…';
+  const r = await getJson('/api/issues').catch((e) => ({ issues: [], error: String(e) }));
+  if (r.error) { $('issues').innerHTML = `<div class="errbox">${esc(r.error)}</div>`; return; }
+  if (!r.issues.length) { $('issues').textContent = 'None yet.'; return; }
+  $('issues').innerHTML = r.issues.map((i) => `
+    <a class="issue ${esc(i.state)}" href="${esc(i.html_url)}" target="_blank" rel="noopener">
+      <div class="title">#${i.number} ${esc(i.title)}</div>
+      <div class="meta">${esc(i.state)} · updated ${esc((i.updated_at || '').slice(0, 16).replace('T', ' '))}</div>
+    </a>`).join('');
+}
+
+function renderDiagnosis(d) {
+  const v = d.verdict;
+  const list = (items) => items.length ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+  const calls = d.calls.map((c) => `
+    <tr class="${c.is_error ? 'error' : ''}">
+      <td class="num">${c.step}</td><td class="num">${c.round}</td>
+      <td><code>${esc(c.tool)}</code> <span class="meta">${esc(JSON.stringify(c.arguments))}</span>
+        <details><summary>result${c.is_error ? ' (error)' : ''}</summary><pre>${esc(c.result)}</pre></details></td>
+      <td class="num">${c.ms} ms</td>
+    </tr>`).join('');
+  return `
+  <div class="card verdict ${esc(v.status)}">
+    <h3>${STATUS[v.status] || esc(v.status)} — ${esc(d.subject.label)}</h3>
+    <div class="meta">stage <code>${esc(v.failed_stage)}</code> · ${d.calls.length} tool calls · ${d.rounds} rounds · ${(d.ms / 1000).toFixed(1)} s · ${v.ai ? 'AI verdict' : 'no AI verdict'}</div>
+    ${d.error ? `<p class="errbox">The model's diagnosis failed: ${esc(d.error)}</p>` : ''}
+    ${v.root_cause ? `<p><b>Root cause.</b> ${esc(v.root_cause)}</p>` : ''}
+    ${v.evidence.length ? `<b>Evidence</b>${list(v.evidence)}` : ''}
+    ${v.suggested_fix ? `<p class="fix"><b>Suggested fix.</b> ${esc(v.suggested_fix)}</p>` : ''}
+    ${v.commands_to_run.length ? `<pre>${esc(v.commands_to_run.join('\n'))}</pre>` : ''}
+    ${v.doc_reference ? `<p><b>Documented in</b> ${esc(v.doc_reference)}</p>` : ''}
+    ${v.notes.map((n) => `<p class="note">⚠️ ${esc(n)}</p>`).join('')}
+    ${calls ? `<details open><summary>Investigation</summary><table>
+      <tr><th>#</th><th>round</th><th>tool</th><th>time</th></tr>${calls}</table></details>` : ''}
+  </div>`;
+}
+
+async function diagnose() {
+  const id = $('runId').value.trim();
+  if (!id) return;
+  $('go').disabled = true;
+  $('result').innerHTML = `<div class="card spinner">Diagnosing run ${esc(id)}: the model is reading logs and checking the VDS. This can take a minute…</div>`;
+  try {
+    const r = await getJson('/api/diagnose', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_id: id }) });
+    let html = '';
+    if (r.run) {
+      html += `<div class="card"><b>Run <a href="${esc(r.run.html_url)}" target="_blank" rel="noopener">#${r.run.id}</a></b>
+        · ${esc(r.run.display_title)} · <code>${esc(r.run.head_sha.slice(0, 7))}</code> · ${esc(r.run.conclusion || r.run.status)}
+        <div class="meta">${r.jobs} jobs, ${r.failed_jobs} failed · ${r.diagnoses.length} subjects · ${(r.ms / 1000).toFixed(1)} s</div>
+        ${r.green.length ? `<div class="meta">All jobs succeeded for: ${esc(r.green.join(', '))}</div>` : ''}</div>`;
+    }
+    if (r.error) html += `<div class="card errbox">${esc(r.error)}</div>`;
+    else if (!r.diagnoses.length) html += '<div class="card empty">Nothing to diagnose: no job failed and nothing was deployed in this run.</div>';
+    html += r.diagnoses.map(renderDiagnosis).join('');
+    html += `<div class="card"><details><summary>The Markdown the Action posts</summary><pre>${esc(r.markdown)}</pre></details></div>`;
+    $('result').innerHTML = html;
+  } catch (e) {
+    $('result').innerHTML = `<div class="card errbox">${esc(e)}</div>`;
+  } finally {
+    $('go').disabled = false;
+  }
+}
+
+$('form').onsubmit = (e) => { e.preventDefault(); diagnose(); };
+$('reloadRuns').onclick = loadRuns;
+$('reloadIssues').onclick = loadIssues;
+loadStatus(); loadRuns(); loadIssues();
+</script>
+</body>
+</html>

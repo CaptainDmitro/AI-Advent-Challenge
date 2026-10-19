@@ -41,6 +41,7 @@ The root `README.md` has a longer description of each lesson.
 | 32 | `32. AI Code Review` | `ai-code-review` | Web + CLI | 4032 | AI review of every PR: a GitHub Action, RAG over the repo's docs and code, MCP, a PR comment | 31 |
 | 33 | `33. Support Assistant` | `support-assistant` | Web | 4033 | a support assistant: RAG over a product FAQ, a `crm` MCP server over users and tickets (with writes) | 31 |
 | 34 | `34. Project File Assistant` | `project-file-assistant` | Web | 4034 | a goal-driven assistant over a project's files: a `files` MCP server (search, read, edit), every change returned as a diff | 31, 33 |
+| 35 | `35. Deploy Doctor` | `deploy-doctor` | Web + CLI | 4035 | an AI diagnosis of every CI/CD run: job logs and the VDS service through read-only tools, a checked verdict, one GitHub issue per broken lesson | 32 |
 
 ## Which lessons use what
 
@@ -56,4 +57,6 @@ The root `README.md` has a longer description of each lesson.
   temporary worktrees in the system temp folder), 33 (`crm.json`, the CRM
   the assistant can write notes and statuses to), 34 (`workspace/`, the demo
   project copied from `sample/` that the assistant edits).
-- **A GitHub Action of its own**: 32 (`.github/workflows/ai-review.yml`).
+- **A GitHub Action of its own**: 32 (`.github/workflows/ai-review.yml`),
+  35 (`.github/workflows/deploy-doctor.yml`, after every CI/CD run).
+- **SSH to the VDS from Actions**: 35 (read-only probes with the deploy key).

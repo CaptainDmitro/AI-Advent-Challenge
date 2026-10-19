@@ -133,6 +133,39 @@ pull_request opened / synchronize / reopened / ready_for_review
 - Like every workflow here, the file is changed by hand in GitHub's web
   editor; its full text is in `32. AI Code Review/README.md`.
 
+## AI diagnosis of every run (`deploy-doctor.yml`)
+
+A third workflow runs when CI/CD completes, whether it succeeded or failed:
+
+```
+CI/CD completed (workflow_run), or "Run workflow" with a run_id
+        |
+        v
+  diagnose  ---> cargo build --release in 35. Deploy Doctor (from master)
+                 ssh key from VDS_SSH_KEY + ssh-keyscan VDS_HOST
+                 deploy-doctor diagnose --run-id N
+                   per failed or deployed lesson: an LLM with read-only tools
+                   (job logs; systemctl/journalctl/.env/curl on the VDS)
+                        -> one issue per lesson, labeled deploy-doctor
+```
+
+- **Permissions**: `actions: read` (job logs), `issues: write`,
+  `contents: read`, with the job's own `GITHUB_TOKEN`. No new secrets: it
+  reuses `VDS_SSH_KEY`, `VDS_HOST`, `VDS_USER` and the `OPENAI_*` settings
+  from the table above.
+- **Read-only**: the probes are built by the doctor from the lesson number,
+  never by the model, and `.env` values never reach the model. It runs
+  exactly the commands listed in "Debugging a failed deploy" below.
+- **Issues**: broken lessons get an issue (commented on by later runs while
+  they stay broken), lesson 04's deliberate failure is recognized as a
+  known issue, and an issue is closed when its lesson is healthy again.
+- **Advisory**: what it finds never fails it. It fails only when it can't
+  diagnose (no run, no model, can't post), and the issue is still posted
+  from the run's own data.
+- `workflow_run` only fires for workflow files on `master`. Like every
+  workflow here, the file is changed by hand in GitHub's web editor; its
+  full text is in `35. Deploy Doctor/README.md`.
+
 ## Debugging a failed deploy
 
 - `GET`/`POST` to `http://<VDS_HOST>:<port>/` timing out or returning an

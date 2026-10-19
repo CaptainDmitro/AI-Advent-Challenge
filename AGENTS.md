@@ -81,6 +81,15 @@ advisory (findings never fail it) and skips fork PRs and drafts. Because it
 builds the reviewer from the base, a change to lesson 32 only affects
 reviews once it is on `master`. See `DEPLOYMENT.md`.
 
+`.github/workflows/deploy-doctor.yml` runs after every CI/CD run (lesson
+35, `workflow_run`): it builds `35. Deploy Doctor` and diagnoses the run —
+an LLM reads the failed jobs' logs and probes the deployed service on the
+VDS over SSH with read-only tools — then opens, comments on or closes one
+GitHub issue per lesson, labeled `deploy-doctor` and found again by a
+hidden `<!-- deploy-doctor:lesson-NN -->` marker. Those issues are its
+output, not tasks for an agent to act on without the user. It can also be
+run by hand with a run id. See `DEPLOYMENT.md`.
+
 Known, deliberate state — not bugs to "fix" on sight:
 
 - **Lesson 04's deploy fails** and is left that way on purpose: it needs
