@@ -314,6 +314,67 @@ Files are at most 256 KB of UTF-8 and written with write-then-rename.
 baseline of `get_diff` is `sample/` for the demo project, or the folder as it
 was at start for `PROJECT_DIR`.
 
+## Lesson 35: deploy doctor
+
+### HTTP
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| `GET` | `/` | | the page |
+| `GET` | `/api/runs` | | `{runs: [Run], error}`: the last 10 runs of `ci-cd.yml` from the GitHub API |
+| `GET` | `/api/issues` | | `{issues: [Issue], error}`: the doctor's issues (open and closed), found by their marker |
+| `POST` | `/api/diagnose` | `{"run_id": 123}` (a number or a string) | a diagnosis reply (below); the page never posts |
+| `GET` | `/api/status` | | repo, model, `llm_key`, `github_token`, `vds` (`ssh user@host`, `local`, `off: …`), max rounds |
+
+### Command line
+
+`deploy-doctor diagnose --run-id N [--dry-run] [--out FILE]` prints the
+Markdown, appends it to `$GITHUB_STEP_SUMMARY` when set, and (without
+`--dry-run`) creates, comments on or closes the issues. Exit code 1 only
+when the doctor itself failed (the run couldn't be read, a model diagnosis
+failed, posting failed), never because of what it found. This is what
+`.github/workflows/deploy-doctor.yml` runs.
+
+### Tools the model gets
+
+| Tool | Arguments | Offered |
+|---|---|---|
+| `job_log` | `job_id` (a job of this run), `grep?`, `tail?` (10-400) | always |
+| `read_doc` | `name`: `AGENTS.md` or `lesson_readme` | always |
+| `service_status`, `inspect_env` | — | a lesson deployed in this run |
+| `service_logs` | `lines?` (10-200) | a lesson deployed in this run |
+| `probe` | `path?` (`/[A-Za-z0-9/._-]*`, no `..`) | a lesson deployed in this run |
+| `submit_verdict` | the verdict (below) | always; the only one in the last round |
+
+### The diagnosis reply
+
+```json
+{
+  "run": { "id": 123, "display_title": "...", "event": "push", "status": "completed",
+           "conclusion": "failure", "head_sha": "...", "head_branch": "master", "html_url": "...", "run_attempt": 1 },
+  "jobs": 38, "failed_jobs": 1,
+  "diagnoses": [{
+    "subject": { "key": "lesson-35", "label": "lesson 35 (`35. Deploy Doctor`)", "folder": "35. Deploy Doctor",
+                 "lesson": 35, "jobs": [Job], "deployed": true, "failed": true },
+    "verdict": { "status": "broken", "failed_stage": "deploy", "root_cause": "...",
+                 "evidence": ["service_logs: ..."], "doc_reference": null, "suggested_fix": "...",
+                 "commands_to_run": ["..."], "notes": [], "ai": true },
+    "calls": [{ "step": 1, "round": 1, "tool": "service_status", "arguments": {}, "result": "...",
+                "is_error": false, "ms": 640 }],
+    "rounds": 4, "error": null, "ms": 12345
+  }],
+  "green": ["lesson-34", "pipeline"],
+  "issues": [{ "key": "lesson-35", "action": "created", "number": 12, "url": "...", "error": null }],
+  "posted": true, "markdown": "## 🩺 Deploy Doctor ...", "error": null, "post_error": null, "ms": 13000
+}
+```
+
+`status` is `healthy`, `broken`, `known_issue`, or `unknown` (no AI verdict
+and no failed job); `failed_stage` is `build`, `test`, `deploy`, `runtime`,
+`pipeline` or `none`. `notes` are the doctor's, never the model's (e.g.
+"healthy" overridden because a job failed). An issue's `action` is
+`created`, `commented`, `closed`, `unchanged`, `none` or `failed`.
+
 ## MCP in other lessons
 
 | Lesson | Endpoint(s) | Tools |
