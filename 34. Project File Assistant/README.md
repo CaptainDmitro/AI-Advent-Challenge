@@ -178,11 +178,11 @@ everything goes over real HTTP and a real MCP connection.
 - `files_mcp_server_reads_searches_and_writes`: the server lists exactly the 6
   tools, each with a description. `list_files` gives 13 files, and 2 under
   `app/routes`. `read_file` returns numbered lines and says when it is
-  truncated. `search_files("require_auth")` finds 12 matches in 6 files, and
+  truncated. `search_files("require_auth")` finds 13 matches in 6 files, and
   10 in 3 under `app` (case-insensitive). The regex
   `@router\.(get|post|put|delete)` over `.py` finds the 9 endpoints. An invalid
   regex and an empty pattern are refused. `edit_file` refuses `Auth:
-  required.` (6 occurrences) and a line-numbered `old_text`, then adds the
+  required.` (5 occurrences) and a line-numbered `old_text`, then adds the
   `DELETE` section (+4 −0, on disk at once). `write_file` creates an ADR and
   refuses `../evil.md`, `.env`, `app/run.exe` and `/tmp/x.md`. `get_diff`
   shows both files, and one with `path`.
