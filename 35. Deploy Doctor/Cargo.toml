@@ -1,0 +1,13 @@
+[package]
+name = "deploy-doctor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+# rustls keeps the musl build static.
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+# `process` runs the read-only probes over ssh (or locally on the VDS).
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "process", "sync", "time"] }
