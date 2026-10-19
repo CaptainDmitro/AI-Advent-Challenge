@@ -340,13 +340,14 @@ jobs:
         run: ./target/release/deploy-doctor diagnose --run-id "$RUN_ID"
 ```
 
-The doctor is built from `master`, so a run that breaks lesson 35 is
-diagnosed by the version that was there before it. Note that the doctor's
-own `OPENAI_API_KEY` comes from the same secret as the lessons', so
-deleting that secret leaves only the fallback verdict. For a demo of a
-broken runtime, stop the service on the VDS instead
-(`systemctl --user stop ai-advent-lesson-35`) and dispatch the doctor with
-the last run's id.
+The doctor is built from the latest `master`, so a commit that breaks
+lesson 35's build also breaks its own diagnosis: that run's doctor job
+fails at `cargo build`, and the CI/CD run's red build-test job is the
+signal. Note that the doctor's own `OPENAI_API_KEY` comes from the same
+secret as the lessons', so deleting that secret leaves only the fallback
+verdict. For a demo of a broken runtime, stop the service on the VDS
+instead (`systemctl --user stop ai-advent-lesson-35`) and dispatch the
+doctor with the last run's id.
 
 **The page** deploys like every lesson. It is the highest-numbered web
 lesson, so `ci-cd.yml` ships it on every push to `master`, to
