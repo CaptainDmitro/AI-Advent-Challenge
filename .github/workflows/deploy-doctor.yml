@@ -4,22 +4,47 @@ on:
     workflows: ["CI/CD"]
     types: [completed]
   workflow_dispatch:
-    inputs: { run_id: { required: true } }
-permissions: { actions: read, issues: write, contents: read }
-concurrency: { group: deploy-doctor-${{ github.event.workflow_run.id || inputs.run_id }} }
+    inputs:
+      run_id:
+        description: 'CI/CD run id to diagnose'
+        required: true
+        type: string
+permissions:
+  actions: read
+  issues: write
+  contents: read
+concurrency:
+  group: deploy-doctor-${{ github.event.workflow_run.id || inputs.run_id }}
 jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "35. Deploy Doctor"
+
+      - name: cargo build --release
         working-directory: "35. Deploy Doctor"
-      - name: SSH key
+        run: cargo build --release
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VDS_SSH_KEY }}
+          VDS_HOST: ${{ vars.VDS_HOST }}
         run: |
-          install -m 600 /dev/null ~/.ssh_doctor
-          echo "${{ secrets.VDS_SSH_KEY }}" > ~/.ssh_doctor
-      - run: ./target/release/deploy-doctor diagnose --run-id "$RUN_ID"
+          set -euo pipefail
+          : "${SSH_KEY:?VDS_SSH_KEY secret is empty}"
+          : "${VDS_HOST:?VDS_HOST repository variable is empty}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/doctor_key
+          chmod 600 ~/.ssh/doctor_key
+          ssh-keyscan -H "$VDS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Diagnose
         working-directory: "35. Deploy Doctor"
         env:
           RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
@@ -27,7 +52,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           VDS_HOST: ${{ vars.VDS_HOST }}
           VDS_USER: ${{ vars.VDS_USER }}
-          VDS_SSH_KEY_PATH: ~/.ssh_doctor
+          VDS_SSH_KEY_PATH: /home/runner/.ssh/doctor_key
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+        run: ./target/release/deploy-doctor diagnose --run-id "$RUN_ID"
