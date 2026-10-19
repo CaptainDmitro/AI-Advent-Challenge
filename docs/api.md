@@ -237,6 +237,80 @@ normalized: `1001`, `#1001` and `t1001` are `T-1001`; `101` is `U-101`.
 The two write tools save `crm.json` at once (write-then-rename); notes are
 signed `assistant`.
 
+## Lesson 34: project file assistant
+
+### HTTP
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| `GET` | `/` | | the assistant page |
+| `POST` | `/api/ask` | `{"message": "...", "dry_run": false}` (`dry_run` optional) | a task reply (below) |
+| `GET` | `/api/files` | | `{files: [{path, bytes, lines}], changes: [{path, status}], error}`: the tree and what changed since the baseline |
+| `GET` | `/api/file?path=docs/api.md` | | `{path, content, error}` |
+| `GET` | `/api/diff` | | `{summary, patch, files: [FileDiff], error}`: every change since the baseline |
+| `GET` | `/api/diff.patch` | | the same patch as `text/x-diff` |
+| `GET` | `/api/status` | | project folder, demo or not, file count, MCP server and tools, model |
+| `POST` | `/api/reset` | | `{ok, restored, error}`: puts `sample/` back (demo project only) |
+| `POST` | `/mcp/files` | MCP JSON-RPC | the `files` MCP server (Streamable HTTP) |
+
+### The task reply
+
+```json
+{
+  "message": "Обнови docs/api.md по коду",
+  "dry_run": false,
+  "answer": "Added `DELETE /notes/{note_id}` and `POST /notes/{note_id}/share` ... Files changed: docs/api.md.",
+  "error": null,
+  "calls": [
+    { "step": 1, "round": 0, "tool": "list_files", "arguments": {}, "auto": true,
+      "is_error": false, "result": "13 files in the project: ...", "structured": {}, "ms": 2 },
+    { "step": 2, "round": 1, "tool": "search_files", "arguments": { "pattern": "@router\\.", "regex": true }, "auto": false, "...": "..." }
+  ],
+  "tools": ["list_files", "read_file", "search_files", "write_file", "edit_file", "get_diff"],
+  "changes": [{ "path": "docs/api.md", "status": "modified", "added": 14, "removed": 1,
+                "diff": "--- a/docs/api.md\n+++ b/docs/api.md\n@@ -34,7 +34,7 @@ ..." }],
+  "diff": "--- a/docs/api.md\n+++ b/docs/api.md\n...",
+  "summary": "1 file changed: docs/api.md (modified, +14 -1)",
+  "changed": true,
+  "reverted": false,
+  "mcp_url": "http://127.0.0.1:4034/mcp/files",
+  "mcp_error": null,
+  "llm_rounds": 5,
+  "ms": 21000
+}
+```
+
+- `calls[0]` is always the automatic `list_files` (`auto: true`, `round: 0`);
+  the rest are the model's own tool calls, by LLM round.
+- `changes`, `diff` and `summary` compare every text file before the task
+  with after it, read from disk, not from the model. `status` is `added`,
+  `modified` or `deleted`; `diff` is a unified diff (`a/`, `b/` prefixes,
+  `/dev/null` for a new file) that `git apply` accepts.
+- With `dry_run: true` the changes are rolled back after the task and
+  `reverted` is true; the diff is still returned.
+
+### MCP server `files`
+
+Every tool returns text for the model plus `structuredContent`. A bad path,
+an ambiguous edit or an invalid regex is a tool result with `isError: true`.
+
+| Tool | Arguments | Structured result |
+|---|---|---|
+| `list_files` | `dir?` | `{dir, total, files: [{path, bytes, lines}]}` |
+| `read_file` | `path`, `start_line?`, `end_line?` (at most 400 lines per call) | `{path, start_line, end_line, total_lines, truncated, content}` |
+| `search_files` | `pattern`, `regex?`, `case_sensitive?`, `path?` (folder or file), `extension?`, `max_results?` (1–200, default 50) | `{pattern, regex, searched, total, files: [{path, matches}], matches: [{path, line, text}]}` |
+| `get_diff` | `path?` | `{files: [{path, status, added, removed}], diff}` |
+| `write_file` | `path`, `content` | `FileDiff`: `{path, status, added, removed, diff}` |
+| `edit_file` | `path`, `old_text`, `new_text`, `replace_all?` | `FileDiff` |
+
+Paths are relative to the project root, `/`-separated, without `..`, never
+hidden (`.env`, `.git`) or under `target`/`node_modules`/`venv`/`__pycache__`,
+and only text extensions; symlinks are not followed out of the project.
+Files are at most 256 KB of UTF-8 and written with write-then-rename.
+`edit_file`'s `old_text` must occur exactly once unless `replace_all`. The
+baseline of `get_diff` is `sample/` for the demo project, or the folder as it
+was at start for `PROJECT_DIR`.
+
 ## MCP in other lessons
 
 | Lesson | Endpoint(s) | Tools |
@@ -248,6 +322,7 @@ signed `assistant`.
 | 31 | `/mcp/project` | `git_branch`, `git_status`, `git_log`, `list_files`, `read_file`, `git_diff` |
 | 32 | `/mcp/project`, and a private one per review over the PR's head | the same 6 as lesson 31 |
 | 33 | `/mcp/crm` | `get_ticket`, `get_user`, `get_login_events`, `list_tickets`, `search_users`, `add_ticket_note`, `set_ticket_status` |
+| 34 | `/mcp/files` | `list_files`, `read_file`, `search_files`, `get_diff`, `write_file`, `edit_file` |
 
 All use Streamable HTTP and accept any `Host` header, so they can be reached
 by IP on the VDS, e.g. with `npx @modelcontextprotocol/inspector`.
