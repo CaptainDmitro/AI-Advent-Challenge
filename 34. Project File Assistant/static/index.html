@@ -257,7 +257,8 @@ async function showTab(which) {
   $("tab-all").classList.toggle("on", tab === "all");
   if (tab === "last") {
     if (!lastReply) { $("changes").className = "empty"; $("changes").textContent = "Run a task first."; return; }
-    renderChanges(lastReply.changes, lastReply.summary, lastReply.reverted ? "dry run: rolled back" : (lastReply.changed ? "saved" : "the task changed no files"));
+    const r = lastReply;
+    renderChanges(r.changes, r.summary, r.reverted ? "dry run: rolled back" : (r.dry_run && r.changed ? "dry run: NOT rolled back" : (r.changed ? "saved" : "the task changed no files")));
   } else {
     const r = await (await fetch("/api/diff")).json();
     renderChanges(r.files, r.summary, r.error || "");
@@ -302,15 +303,17 @@ async function send(message) {
     if (selectedFile) await openFile(selectedFile).catch(() => {});
     if (r.error && !r.answer) {
       pending.className = "msg bot error";
-      pending.innerHTML = esc(r.error) + (r.changed ? `<div class="meta"><span class="badge warn">${esc(r.summary)}</span></div>` : "");
+      pending.innerHTML = esc(r.error) + (r.changed ? `<div class="meta"><span class="badge warn">${esc(r.summary)}${r.dry_run && !r.reverted ? " · NOT rolled back" : ""}</span></div>` : "");
       return;
     }
+    const kept = r.reverted ? " · rolled back" : (r.dry_run ? " · NOT rolled back" : " · saved");
     const reads = r.calls.filter((c) => !c.auto && !WRITE_TOOLS.includes(c.tool)).length;
     const writes = r.calls.filter((c) => WRITE_TOOLS.includes(c.tool) && !c.is_error).length;
     pending.innerHTML = markdown(r.answer) + `
       <div class="meta">
         <span class="badge">${reads} reads · ${writes} writes</span>
-        ${r.changed ? `<span class="badge ${r.reverted ? "accent" : "warn"}">${esc(r.summary)}${r.reverted ? " · rolled back" : " · saved"}</span>` : '<span class="badge">no files changed</span>'}
+        ${r.changed ? `<span class="badge ${r.reverted ? "accent" : "warn"}">${esc(r.summary)}${kept}</span>` : '<span class="badge">no files changed</span>'}
+        ${r.error ? `<span class="badge err">${esc(r.error)}</span>` : ""}
         <span class="badge">${r.llm_rounds} LLM rounds</span>
         <span class="badge">${(r.ms / 1000).toFixed(1)} s</span>
       </div>`;
@@ -349,10 +352,11 @@ $("tab-all").addEventListener("click", () => showTab("all"));
 $("reset").addEventListener("click", async () => {
   const r = await (await fetch("/api/reset", { method: "POST" })).json();
   if (!r.ok) { alert(r.error); return; }
+  lastReply = null;
   add("bot", markdown(r.restored.length ? `Project reset: restored ${r.restored.map((p) => "`" + p + "`").join(", ")}.` : "Project reset: nothing had changed."));
   await loadTree();
   if (selectedFile) await openFile(selectedFile).catch(() => {});
-  await showTab(tab);
+  await showTab("all");
 });
 for (const example of EXAMPLES) {
   const b = document.createElement("button");
