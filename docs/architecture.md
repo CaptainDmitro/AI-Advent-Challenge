@@ -20,12 +20,13 @@ AI-Advent-Challenge/
 │   └── api.md              HTTP and MCP interfaces, data schemas
 ├── .github/workflows/
 │   ├── ci-cd.yml           build, test and deploy
-│   └── ai-review.yml       AI review of every pull request (lesson 32)
+│   ├── ai-review.yml       AI review of every pull request (lesson 32)
+│   └── deploy-doctor.yml   AI diagnosis of every CI/CD run (lesson 35)
 ├── 01. Rust LLM Chat CLI/  one folder per lesson ...
 ├── ...
 ├── 31. Developer Assistant/
 ├── ...
-└── 34. Project File Assistant/
+└── 35. Deploy Doctor/
 ```
 
 There is no Cargo workspace. Every lesson folder is an **independent Cargo
@@ -88,6 +89,9 @@ before it:
    assistant can change, not only read: a support CRM with ticket notes and
    statuses (33), and a project's files with search, edits and a diff of
    every change (34).
+10. **A real task (35)**: the course's own CI/CD pipeline, diagnosed by an
+   LLM after every run with read-only tools (job logs, the service on the
+   VDS over SSH) and reported as GitHub issues.
 
 ## LLM access
 
@@ -143,3 +147,7 @@ lesson deploys on a normal push; older ones are redeployed with a manual
 A second workflow, `ai-review.yml`, runs on pull requests rather than
 pushes: it builds lesson 32 from the PR's base branch and posts an AI review
 of the PR as a comment. It is advisory and deploys nothing.
+
+A third, `deploy-doctor.yml`, runs after every CI/CD run (`workflow_run`):
+it builds lesson 35 and lets an LLM diagnose the run with read-only tools,
+then opens, comments on or closes one `deploy-doctor` issue per lesson.
