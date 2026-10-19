@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project File Assistant</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #677085; --line: #e2e5ea;
+    --accent: #2f6fde; --accent-soft: #e8f0fd; --ok: #1f8a4c; --ok-soft: #e5f5ec;
+    --err: #c0392b; --err-soft: #fbeaea; --warn: #9a6700; --warn-soft: #fff4d6;
+    --code: #f1f3f6; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .spacer { flex: 1; }
+  header button, header a.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; color: var(--text); text-decoration: none; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: var(--code); color: var(--muted); font-family: var(--mono); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.accent { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  main { display: grid; grid-template-columns: 250px minmax(0, 1fr) 460px; gap: 16px; padding: 16px 20px; height: calc(100vh - 58px); }
+  @media (max-width: 1200px) { main { grid-template-columns: 1fr; height: auto; } }
+  .tree, aside { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .card h2, .tree h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .file { font-family: var(--mono); font-size: 12.5px; padding: 3px 6px; border-radius: 5px; cursor: pointer; display: flex; justify-content: space-between; gap: 6px; }
+  .file:hover { background: var(--accent-soft); }
+  .file.selected { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .file .lines { color: var(--muted); font-size: 11px; }
+  .mark { font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 4px; }
+  .mark.modified { background: var(--warn-soft); color: var(--warn); }
+  .mark.added { background: var(--ok-soft); color: var(--ok); }
+  .mark.deleted { background: var(--err-soft); color: var(--err); }
+  .chat { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 520px; }
+  .chat-head { padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 92%; padding: 10px 14px; border-radius: 10px; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; white-space: pre-wrap; }
+  .msg.user .on { display: block; font-size: 11px; opacity: .8; font-family: var(--mono); }
+  .msg.bot { align-self: flex-start; background: var(--code); }
+  .msg.bot.error { background: var(--err-soft); color: var(--err); }
+  .msg .meta { margin-top: 8px; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+  .msg h4 { margin: 8px 0 4px; font-size: 14px; }
+  .msg p { margin: 6px 0; }
+  .msg ul, .msg ol { margin: 6px 0; padding-left: 22px; }
+  .msg code { font-family: var(--mono); font-size: 12.5px; background: rgba(0,0,0,.06); padding: 1px 4px; border-radius: 4px; }
+  .msg pre { background: #1e2430; color: #e6e9ef; padding: 10px; border-radius: 6px; overflow-x: auto; }
+  .msg pre code { background: none; color: inherit; padding: 0; }
+  .msg table { border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
+  .msg td, .msg th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
+  .examples button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--muted); text-align: left; }
+  .examples button:hover { border-color: var(--accent); color: var(--accent); }
+  form { display: flex; gap: 8px; padding: 12px 16px 16px; align-items: center; }
+  #input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  #input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  form label { font-size: 12px; color: var(--muted); display: flex; gap: 4px; align-items: center; white-space: nowrap; cursor: pointer; }
+  form button { padding: 10px 18px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  form button:disabled { opacity: .5; cursor: wait; }
+  .diff { font-family: var(--mono); font-size: 11.5px; line-height: 1.45; background: var(--code); border-radius: 6px; padding: 6px 0; overflow-x: auto; max-height: 420px; overflow-y: auto; margin: 4px 0 10px; }
+  .diff div { white-space: pre; padding: 0 8px; min-height: 1.45em; }
+  .diff .add { background: #e3f6e8; color: #116329; }
+  .diff .del { background: #fde8e8; color: #a40e26; }
+  .diff .hunk { color: var(--accent); background: var(--accent-soft); }
+  .diff .head { color: var(--muted); font-weight: 600; }
+  .fd-title { display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 12.5px; }
+  .call { border-left: 3px solid var(--accent); padding: 4px 8px; margin: 6px 0; font-size: 12.5px; }
+  .call.auto { border-color: var(--ok); }
+  .call.write { border-color: var(--warn); }
+  .call.error { border-color: var(--err); }
+  .call summary { cursor: pointer; font-family: var(--mono); word-break: break-all; }
+  .call pre { white-space: pre-wrap; font-size: 11.5px; background: var(--code); padding: 6px; border-radius: 4px; max-height: 220px; overflow-y: auto; margin: 6px 0 0; }
+  .viewer { font-family: var(--mono); font-size: 11.5px; background: var(--code); border-radius: 6px; padding: 6px 0; max-height: 420px; overflow: auto; }
+  .viewer div { white-space: pre; padding: 0 8px; }
+  .viewer .n { color: var(--muted); display: inline-block; width: 34px; text-align: right; margin-right: 10px; user-select: none; }
+  .empty { color: var(--muted); font-size: 12.5px; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 1px 8px; font-size: 11px; cursor: pointer; color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .tabs button.on { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🗂️ Project File Assistant</h1>
+  <span class="badge" id="ws-badge">project …</span>
+  <span class="badge" id="mcp-badge">MCP …</span>
+  <span class="badge" id="model-badge">…</span>
+  <span class="spacer"></span>
+  <a class="btn" href="/api/diff.patch" target="_blank" title="Every change since the baseline as one patch">changes.patch</a>
+  <button id="reset" title="Put the demo project back">reset project</button>
+</header>
+<main>
+  <section class="tree">
+    <h2>Files <span class="badge" id="tree-count">…</span></h2>
+    <div id="tree" class="empty">loading…</div>
+  </section>
+  <section class="chat">
+    <div class="chat-head">Give a goal, not a file name: the assistant opens the project (<span class="badge">list_files</span>), searches, reads and edits over the <span class="badge">files</span> MCP server, and every change is saved and shown as a diff.</div>
+    <div id="log"></div>
+    <div class="examples" id="examples"></div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Найди все места, где используется require_auth">
+      <label title="Show the diff, then roll the changes back"><input type="checkbox" id="dry"> dry run</label>
+      <button id="send">Run</button>
+    </form>
+  </section>
+  <aside>
+    <div class="card">
+      <h2>Changes <span class="tabs"><button id="tab-last" class="on">last task</button><button id="tab-all">since baseline</button></span></h2>
+      <div id="changes" class="empty">Run a task first.</div>
+    </div>
+    <div class="card">
+      <h2>MCP calls (last task)</h2>
+      <div id="calls" class="empty">Run a task first.</div>
+    </div>
+    <div class="card">
+      <h2>File <span class="badge" id="viewer-path">—</span></h2>
+      <div id="viewer" class="empty">Click a file on the left.</div>
+    </div>
+  </aside>
+</main>
+<script>
+const EXAMPLES = [
+  "Найди все места, где используется require_auth, и скажи, какие эндпоинты остались без авторизации",
+  "Обнови docs/api.md по коду: допиши недостающие эндпоинты и исправь устаревшие описания",
+  "Проверь проект на соответствие правилам из PROJECT_RULES.md",
+  "Сгенерируй ADR 0002 о переходе с in-memory хранилища на SQLite в формате существующего ADR",
+  "Добавь в CHANGELOG.md раздел Unreleased по изменениям в коде, которых там ещё нет",
+  "Убери вызовы legacy_hash и подготовь diff",
+];
+const WRITE_TOOLS = ["write_file", "edit_file"];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let changesByPath = {};
+let selectedFile = "";
+let lastReply = null;
+let tab = "last";
+
+// A small Markdown renderer: code blocks, headings, lists, tables, bold and
+// inline code.
+function inline(text) {
+  let s = esc(text);
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+}
+
+function markdown(md) {
+  const lines = String(md).split("\n");
+  let html = "", list = null, code = null, table = null;
+  const closeList = () => { if (list) { html += `</${list}>`; list = null; } };
+  const closeTable = () => { if (table) { html += "</table>"; table = null; } };
+  for (const line of lines) {
+    if (code !== null) {
+      if (line.trim().startsWith("```")) { html += `<pre><code>${esc(code)}</code></pre>`; code = null; }
+      else code += (code ? "\n" : "") + line;
+      continue;
+    }
+    if (line.trim().startsWith("```")) { closeList(); closeTable(); code = ""; continue; }
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      closeList();
+      if (/^\s*\|[\s:|-]+\|\s*$/.test(line)) continue;
+      const cells = line.trim().slice(1, -1).split("|").map((c) => inline(c.trim()));
+      if (!table) { html += "<table>"; table = true; html += `<tr>${cells.map((c) => `<th>${c}</th>`).join("")}</tr>`; }
+      else html += `<tr>${cells.map((c) => `<td>${c}</td>`).join("")}</tr>`;
+      continue;
+    }
+    closeTable();
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { closeList(); html += `<h4>${inline(h[2])}</h4>`; continue; }
+    const ul = line.match(/^\s*[-*]\s+(.*)$/);
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ul || ol) {
+      const kind = ul ? "ul" : "ol";
+      if (list !== kind) { closeList(); html += `<${kind}>`; list = kind; }
+      html += `<li>${inline((ul || ol)[1])}</li>`;
+      continue;
+    }
+    closeList();
+    if (line.trim()) html += `<p>${inline(line)}</p>`;
+  }
+  if (code !== null) html += `<pre><code>${esc(code)}</code></pre>`;
+  closeList();
+  closeTable();
+  return html;
+}
+
+function add(kind, html) {
+  const div = document.createElement("div");
+  div.className = "msg " + kind;
+  div.innerHTML = html;
+  $("log").appendChild(div);
+  $("log").scrollTop = $("log").scrollHeight;
+  return div;
+}
+
+function diffHtml(text) {
+  return `<div class="diff">${String(text).replace(/\n$/, "").split("\n").map((l) => {
+    const cls = l.startsWith("+++") || l.startsWith("---") ? "head" : l.startsWith("@@") ? "hunk" : l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : "";
+    return `<div class="${cls}">${esc(l)}</div>`;
+  }).join("")}</div>`;
+}
+
+// ---- Files ----
+
+async function loadTree() {
+  try {
+    const r = await (await fetch("/api/files")).json();
+    changesByPath = Object.fromEntries((r.changes || []).map((c) => [c.path, c.status]));
+    const files = r.files || [];
+    $("tree-count").textContent = `${files.length} files`;
+    if (r.error) { $("tree").className = "empty"; $("tree").textContent = r.error; return; }
+    $("tree").className = "";
+    $("tree").innerHTML = files.map((f) => {
+      const st = changesByPath[f.path];
+      return `<div class="file ${f.path === selectedFile ? "selected" : ""}" data-path="${esc(f.path)}">
+        <span>${esc(f.path)}</span>
+        <span>${st ? `<span class="mark ${st}">${st === "added" ? "A" : st === "deleted" ? "D" : "M"}</span>` : ""} <span class="lines">${f.lines}</span></span>
+      </div>`;
+    }).join("");
+    for (const el of document.querySelectorAll("#tree .file")) el.addEventListener("click", () => openFile(el.dataset.path));
+  } catch (e) {
+    $("tree").textContent = "Failed: " + e;
+  }
+}
+
+async function openFile(path) {
+  selectedFile = path;
+  for (const el of document.querySelectorAll("#tree .file")) el.classList.toggle("selected", el.dataset.path === path);
+  $("viewer-path").textContent = path;
+  const r = await (await fetch("/api/file?path=" + encodeURIComponent(path))).json();
+  if (r.error) { $("viewer").className = "empty"; $("viewer").textContent = r.error; return; }
+  $("viewer").className = "viewer";
+  $("viewer").innerHTML = r.content.replace(/\n$/, "").split("\n").map((l, i) => `<div><span class="n">${i + 1}</span>${esc(l)}</div>`).join("");
+}
+
+// ---- Changes and calls ----
+
+function renderChanges(diffs, summary, note) {
+  if (!diffs || !diffs.length) { $("changes").className = "empty"; $("changes").textContent = note || "No changes."; return; }
+  $("changes").className = "";
+  $("changes").innerHTML = `<div class="empty">${esc(summary)}${note ? " · " + esc(note) : ""}</div>` + diffs.map((d) => `
+    <div class="fd-title"><span>${esc(d.path)}</span><span><span class="mark ${d.status}">${esc(d.status)}</span> <span class="badge">+${d.added} −${d.removed}</span></span></div>
+    ${diffHtml(d.diff)}`).join("");
+}
+
+async function showTab(which) {
+  tab = which;
+  $("tab-last").classList.toggle("on", tab === "last");
+  $("tab-all").classList.toggle("on", tab === "all");
+  if (tab === "last") {
+    if (!lastReply) { $("changes").className = "empty"; $("changes").textContent = "Run a task first."; return; }
+    renderChanges(lastReply.changes, lastReply.summary, lastReply.reverted ? "dry run: rolled back" : (lastReply.changed ? "saved" : "the task changed no files"));
+  } else {
+    const r = await (await fetch("/api/diff")).json();
+    renderChanges(r.files, r.summary, r.error || "");
+  }
+}
+
+function renderCalls(r) {
+  $("calls").className = r.calls.length ? "" : "empty";
+  $("calls").innerHTML = r.calls.length ? r.calls.map((c) => {
+    const write = WRITE_TOOLS.includes(c.tool);
+    const args = { ...c.arguments };
+    for (const k of ["content", "old_text", "new_text"]) if (typeof args[k] === "string" && args[k].length > 60) args[k] = args[k].slice(0, 60) + "…";
+    return `
+    <details class="call ${c.auto ? "auto" : ""} ${write ? "write" : ""} ${c.is_error ? "error" : ""}">
+      <summary>${c.step}. ${esc(c.tool)}(${esc(JSON.stringify(args) === "{}" ? "" : JSON.stringify(args))})
+        ${c.auto ? '<span class="badge ok">auto</span>' : `<span class="badge">round ${c.round}</span>`}
+        ${write ? '<span class="badge warn">write</span>' : ""}
+        ${c.is_error ? '<span class="badge err">error</span>' : ""} <span class="badge">${c.ms} ms</span></summary>
+      <pre>${esc(c.result)}</pre>
+    </details>`;
+  }).join("") : esc(r.mcp_error || "No MCP calls.");
+}
+
+async function send(message) {
+  message = message.trim();
+  if (!message) return;
+  const dry = $("dry").checked;
+  add("user", `<span class="on">${dry ? "dry run" : "apply"}</span>${esc(message)}`);
+  const pending = add("bot", `<span class="empty">working… (list_files → model ↔ search / read / edit → diff)</span>`);
+  $("send").disabled = true;
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, dry_run: dry }),
+    });
+    const r = await res.json();
+    lastReply = r;
+    renderCalls(r);
+    await showTab("last");
+    await loadTree();
+    if (selectedFile) await openFile(selectedFile).catch(() => {});
+    if (r.error && !r.answer) {
+      pending.className = "msg bot error";
+      pending.innerHTML = esc(r.error) + (r.changed ? `<div class="meta"><span class="badge warn">${esc(r.summary)}</span></div>` : "");
+      return;
+    }
+    const reads = r.calls.filter((c) => !c.auto && !WRITE_TOOLS.includes(c.tool)).length;
+    const writes = r.calls.filter((c) => WRITE_TOOLS.includes(c.tool) && !c.is_error).length;
+    pending.innerHTML = markdown(r.answer) + `
+      <div class="meta">
+        <span class="badge">${reads} reads · ${writes} writes</span>
+        ${r.changed ? `<span class="badge ${r.reverted ? "accent" : "warn"}">${esc(r.summary)}${r.reverted ? " · rolled back" : " · saved"}</span>` : '<span class="badge">no files changed</span>'}
+        <span class="badge">${r.llm_rounds} LLM rounds</span>
+        <span class="badge">${(r.ms / 1000).toFixed(1)} s</span>
+      </div>`;
+  } catch (e) {
+    pending.className = "msg bot error";
+    pending.textContent = "Request failed: " + e;
+  } finally {
+    $("send").disabled = false;
+    $("log").scrollTop = $("log").scrollHeight;
+  }
+}
+
+async function loadStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    $("ws-badge").textContent = `${s.workspace.demo ? "demo" : "PROJECT_DIR"} · ${s.workspace.files} files`;
+    $("ws-badge").title = s.workspace.root;
+    $("mcp-badge").textContent = s.mcp.tools ? `MCP /mcp/files · ${s.mcp.tools.length} tools` : "MCP unreachable";
+    $("mcp-badge").className = "badge " + (s.mcp.tools ? "ok" : "err");
+    $("mcp-badge").title = s.mcp.tools ? s.mcp.tools.join(", ") : (s.mcp.error || "");
+    $("model-badge").textContent = s.model;
+    $("reset").hidden = !s.workspace.demo;
+  } catch (e) {
+    $("mcp-badge").textContent = "status failed";
+  }
+}
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const message = $("input").value;
+  $("input").value = "";
+  send(message);
+});
+$("tab-last").addEventListener("click", () => showTab("last"));
+$("tab-all").addEventListener("click", () => showTab("all"));
+$("reset").addEventListener("click", async () => {
+  const r = await (await fetch("/api/reset", { method: "POST" })).json();
+  if (!r.ok) { alert(r.error); return; }
+  add("bot", markdown(r.restored.length ? `Project reset: restored ${r.restored.map((p) => "`" + p + "`").join(", ")}.` : "Project reset: nothing had changed."));
+  await loadTree();
+  if (selectedFile) await openFile(selectedFile).catch(() => {});
+  await showTab(tab);
+});
+for (const example of EXAMPLES) {
+  const b = document.createElement("button");
+  b.textContent = example;
+  b.addEventListener("click", () => send(example));
+  $("examples").appendChild(b);
+}
+loadStatus();
+loadTree();
+add("bot", markdown("Give me a goal about the project, for example **«Обнови docs/api.md по коду»** or **«Проверь проект на соответствие правилам»**. I list the files myself, search and read what the goal depends on, and edit files over the `files` MCP server. Every change is saved to disk and shown on the right as a unified diff; tick **dry run** to see the diff without keeping it."));
+</script>
+</body>
+</html>

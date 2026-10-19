@@ -24,7 +24,8 @@ AI-Advent-Challenge/
 ├── 01. Rust LLM Chat CLI/  one folder per lesson ...
 ├── ...
 ├── 31. Developer Assistant/
-└── 32. AI Code Review/
+├── ...
+└── 34. Project File Assistant/
 ```
 
 There is no Cargo workspace. Every lesson folder is an **independent Cargo
@@ -83,6 +84,10 @@ before it:
 8. **Code review (32)**: lesson 31's RAG and MCP turned on pull requests: a
    GitHub Action reviews every PR's diff against the repo's docs and code and
    posts the review as a PR comment.
+9. **Assistants with write access (33–34)**: an MCP server that the
+   assistant can change, not only read: a support CRM with ticket notes and
+   statuses (33), and a project's files with search, edits and a diff of
+   every change (34).
 
 ## LLM access
 
@@ -113,7 +118,7 @@ Lessons 21–25, 28, 29, 31 and 32 share one index design:
 MCP servers in this repo use `rmcp` with the Streamable HTTP transport. A
 lesson's MCP servers are mounted on the same axum router as its page, under
 `/mcp/...`, so they deploy as one binary on one port. Clients (the agents in
-lessons 17–20 and 31) connect to them over HTTP by URL, the same way they
+lessons 17–20 and 31–34) connect to them over HTTP by URL, the same way they
 would connect to a remote server, perform `initialize`, read `tools/list`,
 and pass the tools to the LLM as OpenAI function definitions.
 
