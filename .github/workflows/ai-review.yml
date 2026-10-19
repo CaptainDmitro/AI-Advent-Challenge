@@ -1,0 +1,62 @@
+name: AI code review
+
+# Lesson 32: an AI review of every pull request, posted as one PR comment
+# that is edited in place on each new push. Advisory only: findings never
+# fail this check (it fails only when the review itself can't run).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # PRs from forks get no secrets, and drafts wait until they're ready.
+    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # The reviewer is built from the base branch, so a PR can't change
+      # (or break) the code that reviews it.
+      - name: Check out the reviewer (base branch)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: reviewer
+
+      # The PR's head with full history: the diff needs the base commit too.
+      - name: Check out the pull request (head)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: reviewer/32. AI Code Review
+          key: ai-review
+
+      - name: Build the reviewer
+        working-directory: reviewer/32. AI Code Review
+        run: cargo build --release
+
+      - name: Review the pull request
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          "reviewer/32. AI Code Review/target/release/ai-code-review" review \
+            --repo-dir pr --pr "$PR_NUMBER" --post
