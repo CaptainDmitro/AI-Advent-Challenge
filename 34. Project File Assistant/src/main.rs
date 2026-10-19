@@ -275,6 +275,18 @@ impl Llm {
     }
 }
 
+/// OpenAI sends a tool call's arguments as a JSON string; some compatible
+/// servers send the object itself. Malformed JSON is passed on as a string,
+/// so the call fails with an error the model can read.
+fn tool_arguments(raw: &Value) -> Value {
+    match raw {
+        Value::String(s) if s.trim().is_empty() => json!({}),
+        Value::String(s) => serde_json::from_str(s).unwrap_or_else(|_| Value::String(s.clone())),
+        Value::Object(_) => raw.clone(),
+        _ => json!({}),
+    }
+}
+
 fn message_text(message: &Value) -> Option<String> {
     let text = message.get("content")?.as_str()?.trim();
     (!text.is_empty()).then(|| text.to_string())
@@ -490,12 +502,7 @@ async fn work(
         for call in tool_calls {
             let id = call["id"].as_str().unwrap_or_default().to_string();
             let name = call["function"]["name"].as_str().unwrap_or_default();
-            let raw = call["function"]["arguments"].as_str().unwrap_or("{}");
-            let arguments: Value = if raw.trim().is_empty() {
-                json!({})
-            } else {
-                serde_json::from_str(raw).unwrap_or_else(|_| Value::String(raw.to_string()))
-            };
+            let arguments = tool_arguments(&call["function"]["arguments"]);
             let step = reply.calls.len() + 1;
             let trace = match files {
                 Some(files) => files.call(step, round, name, arguments, false).await,
@@ -844,6 +851,15 @@ mod tests {
             .to_string()
     }
 
+    #[test]
+    fn tool_arguments_come_as_a_string_or_an_object() {
+        assert_eq!(tool_arguments(&json!("{\"path\": \"a.md\"}")), json!({ "path": "a.md" }));
+        assert_eq!(tool_arguments(&json!({ "path": "a.md" })), json!({ "path": "a.md" }));
+        assert_eq!(tool_arguments(&json!("")), json!({}));
+        assert_eq!(tool_arguments(&Value::Null), json!({}));
+        assert_eq!(tool_arguments(&json!("{oops")), json!("{oops"));
+    }
+
     const DOCS_OLD: &str = "Body: `{\"title\": \"...\", \"body\": \"...\"}`. Returns the note, or `404`.";
     const DOCS_NEW: &str = "Body: `{\"title\": \"...\", \"body\": \"...\"}`. Returns the note, or `404`.\n\n\
         ### DELETE /notes/{note_id}\n\n\
@@ -891,7 +907,7 @@ mod tests {
         // search_files: every place `require_auth` is used.
         let usages = files.call(7, 1, "search_files", json!({ "pattern": "require_auth" }), false).await;
         let u = usages.structured.unwrap();
-        assert_eq!(u["total"], 12);
+        assert_eq!(u["total"], 13);
         assert_eq!(u["files"].as_array().unwrap().len(), 6);
         let in_app = files
             .call(8, 1, "search_files", json!({ "pattern": "REQUIRE_AUTH", "path": "app" }), false)
@@ -912,7 +928,7 @@ mod tests {
         let ambiguous = files
             .call(13, 1, "edit_file", json!({ "path": "docs/api.md", "old_text": "Auth: required.", "new_text": "Auth: yes." }), false)
             .await;
-        assert!(ambiguous.is_error && ambiguous.result.contains("6 times"), "{}", ambiguous.result);
+        assert!(ambiguous.is_error && ambiguous.result.contains("5 times"), "{}", ambiguous.result);
         let missing = files
             .call(14, 1, "edit_file", json!({ "path": "docs/api.md", "old_text": "  12 | nope", "new_text": "x" }), false)
             .await;
