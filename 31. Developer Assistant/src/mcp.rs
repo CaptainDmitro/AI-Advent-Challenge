@@ -26,7 +26,7 @@ const DEFAULT_FILES: u32 = 200;
 const MAX_FILES: u32 = 500;
 const MAX_STATUS_LINES: usize = 200;
 const DEFAULT_READ_LINES: u32 = 200;
-const MAX_READ_LINES: u32 = 400;
+const MAX_READ_LINES: u32 = 5000;
 const MAX_READ_BYTES: usize = 40 * 1024;
 const MAX_DIFF_CHARS: usize = 12_000;
 
@@ -49,6 +49,14 @@ fn in_range(name: &str, value: Option<u32>, default: u32, max: u32) -> Result<u3
     } else {
         Err(format!("`{name}` must be 1-{max}, got {value}."))
     }
+}
+
+/// Shortens `text` to `max` characters for the read_file header.
+fn truncate_text(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text.to_string();
+    }
+    text.chars().take(max).collect()
 }
 
 /// The first `max` characters, cut at a char boundary.
@@ -83,7 +91,7 @@ struct ReadFileArgs {
     path: String,
     /// The first line to return, 1-based. Default 1.
     start_line: Option<u32>,
-    /// How many lines to return: 1-400, default 200.
+    /// How many lines to return: 1-5000, default 200.
     max_lines: Option<u32>,
 }
 
@@ -344,7 +352,7 @@ impl ProjectServer {
             Ok(n) => n as usize,
             Err(e) => return tool_error(e),
         };
-        let start = args.start_line.unwrap_or(1).max(1) as usize;
+        let start = args.start_line.unwrap() as usize;
         let full = match self.repo.resolve(&args.path) {
             Ok(full) => full,
             Err(e) => return tool_error(e),
@@ -368,7 +376,7 @@ impl ProjectServer {
         }
         let mut text = String::new();
         let mut end = start - 1;
-        for line in content.lines().skip(start - 1).take(max_lines) {
+        for line in content.lines().skip(start).take(max_lines) {
             if text.len() + line.len() > MAX_READ_BYTES {
                 break;
             }
@@ -376,7 +384,7 @@ impl ProjectServer {
             text.push('\n');
             end += 1;
         }
-        let header = format!("{rel}, lines {start}-{end} of {total}:");
+        let header = truncate_text(&format!("{rel}, lines {start}-{end} of {total}:"), 200);
         tool_ok(
             format!("{header}\n\n{text}"),
             json!({
